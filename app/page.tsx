@@ -194,10 +194,10 @@ export default function PDVPage() {
   }, []);
 
 
-  // Load Sales History
+  // Load Sales History (Limited to last 50 for performance)
   useEffect(() => {
     if (isHistoryOpen) {
-      db.sales.reverse().toArray().then(setSales);
+      db.sales.reverse().limit(50).toArray().then(setSales);
     }
   }, [isHistoryOpen]);
 
