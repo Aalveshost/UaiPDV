@@ -607,7 +607,7 @@ export default function PDVPage() {
             whileTap={{ scale: 0.98 }}
             onClick={() => setIsCheckoutOpen(true)}
             disabled={cart.length === 0}
-            className="w-full bg-primary hover:bg-primary/80 disabled:bg-white/5 disabled:text-white/20 disabled:cursor-not-allowed text-white py-3 rounded-lg font-black text-sm tracking-tight shadow-md transition-premium group uppercase italic"
+            className="w-full bg-primary hover:bg-primary/80 disabled:bg-white/5 disabled:text-white/20 disabled:cursor-not-allowed text-white py-3 rounded-lg font-black text-sm tracking-tight shadow-md transition-premium flex items-center justify-center gap-2 group uppercase italic"
           >
             Finalizar
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-premium" />
