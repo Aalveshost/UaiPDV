@@ -1,0 +1,8 @@
+{
+  "appId": "com.uaipdv.app",
+  "appName": "Uai PDV",
+  "webDir": "out",
+  "server": {
+    "androidScheme": "https"
+  }
+}
