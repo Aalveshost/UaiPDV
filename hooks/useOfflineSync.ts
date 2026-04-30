@@ -129,10 +129,10 @@ export function useOfflineSync() {
       if (navigator.onLine && !syncingRef.current) {
         await syncPendingSales();
       }
-      syncTimer = setTimeout(periodicSync, 30000);
+      syncTimer = setTimeout(periodicSync, 120000);
     };
 
-    syncTimer = setTimeout(periodicSync, 30000);
+    syncTimer = setTimeout(periodicSync, 120000);
 
     return () => {
       window.removeEventListener('online', handleOnline);

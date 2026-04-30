@@ -142,10 +142,36 @@ export default function PDVPage() {
   
   const { isOnline, pendingCount, lastSyncTime, pullRecentSales } = useOfflineSync();
 
-  // Initialize Storage Persistence and Register SW
+  // Initialize Storage Persistence, Register SW and Keep Screen On
   useEffect(() => {
     requestPersistence();
     
+    // Screen Wake Lock
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+          console.log('Wake Lock is active');
+        }
+      } catch (err: any) {
+        console.error(`${err.name}, ${err.message}`);
+      }
+    };
+
+    requestWakeLock();
+
+    // Re-acquire wake lock when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Force unregister all service workers to stop loops only if we want a fresh start
+    // navigator.serviceWorker.getRegistrations().then(registrations => { ... });
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('SW Registered!', reg))
@@ -160,6 +186,11 @@ export default function PDVPage() {
         // Removed reload — not needed, clear() takes effect immediately
       });
     }
+
+    return () => {
+      if (wakeLock !== null) wakeLock.release();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
 
@@ -1255,7 +1286,7 @@ export default function PDVPage() {
 
                   <motion.button 
                     whileTap={{ scale: 0.95 }}
-                    onTap={() => window.open('/Uai-PDV-2.5.apk', '_blank')}
+                    onTap={() => window.open('/UaiPDV-2.apk', '_blank')}
                     className="w-full flex items-center gap-5 p-6 bg-primary/5 rounded-2xl hover:bg-primary/10 border border-primary/10 transition-premium group"
                   >
                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-premium shadow-lg">

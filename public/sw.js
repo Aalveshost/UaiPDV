@@ -21,12 +21,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Apenas requisições GET do nosso próprio domínio, ignorando Supabase/API para evitar loops
+  // Ignorar APKs, Supabase, hot-reloading e assets de desenvolvimento
+  const isDevAsset = 
+    event.request.url.includes('/_next/') || 
+    event.request.url.includes('webpack-hmr') ||
+    event.request.url.includes('browser-sync') ||
+    event.request.url.includes('hot-update');
+
   if (
     event.request.method !== 'GET' || 
     !event.request.url.startsWith(self.location.origin) ||
     event.request.url.includes('supabase.co') ||
-    event.request.url.includes('_next/data')
+    event.request.url.includes('.apk') ||
+    isDevAsset
   ) {
     return;
   }
@@ -51,6 +58,7 @@ self.addEventListener('fetch', (event) => {
         if (event.request.mode === 'navigate') {
           return caches.match('/');
         }
+        return new Response('Network error', { status: 408, headers: { 'Content-Type': 'text/plain' } });
       });
     })
   );

@@ -5,9 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  turbopack: {
-    root: __dirname,
-  },
+  allowedDevOrigins: ['192.168.18.120', 'webhook.aalves.dev', 'localhost:3001'],
 };
 
 export default nextConfig;

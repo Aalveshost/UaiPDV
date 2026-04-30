@@ -35,6 +35,7 @@ export default function RootLayout({
     <html lang="pt-BR" className="h-full">
       <body
         className={`${inter.variable} font-sans h-full antialiased bg-black text-white selection:bg-primary/30`}
+        suppressHydrationWarning
       >
         {children}
       </body>
