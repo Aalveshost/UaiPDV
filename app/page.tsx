@@ -607,7 +607,7 @@ export default function PDVPage() {
             whileTap={{ scale: 0.98 }}
             onClick={() => setIsCheckoutOpen(true)}
             disabled={cart.length === 0}
-            className="w-full bg-primary hover:bg-primary/80 disabled:bg-white/5 disabled:text-white/20 disabled:cursor-not-allowed text-white py-3 rounded-lg font-black text-sm tracking-tight shadow-md transition-premium flex items-center justify-center gap-2 group uppercase italic"
+            className="w-full bg-primary hover:bg-primary/80 disabled:bg-white/5 disabled:text-white/20 disabled:cursor-not-allowed text-white py-3 rounded-lg font-black text-sm tracking-tight shadow-md transition-premium group uppercase italic"
           >
             Finalizar
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-premium" />
@@ -1224,7 +1224,7 @@ export default function PDVPage() {
                   </motion.button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                   {[
                     { label: 'Gerenciar Produtos', icon: ShoppingCart },
                     { label: 'Gerenciar Categorias', icon: Settings },
@@ -1233,13 +1233,13 @@ export default function PDVPage() {
                     <motion.button 
                       key={i} 
                       whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-5 p-6 bg-white/5 rounded-2xl hover:bg-primary/10 border border-transparent hover:border-primary/50 transition-premium group"
+                      className="w-full flex items-center gap-4 p-4 bg-white/5 rounded-2xl hover:bg-primary/10 border border-transparent hover:border-primary/50 transition-premium group"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-primary text-foreground/40 group-hover:text-white transition-premium shadow-lg">
-                        <item.icon className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-primary text-foreground/40 group-hover:text-white transition-premium shadow-lg">
+                        <item.icon className="w-5 h-5" />
                       </div>
-                      <span className="font-black text-lg uppercase tracking-tight italic">{item.label}</span>
-                      <ChevronRight className="w-6 h-6 ml-auto opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-premium" />
+                      <span className="font-black text-base uppercase tracking-tight italic">{item.label}</span>
+                      <ChevronRight className="w-5 h-5 ml-auto opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-premium" />
                     </motion.button>
                   ))}
 
@@ -1251,22 +1251,23 @@ export default function PDVPage() {
                         alert('Contador zerado!');
                       }
                     }}
-                    className="w-full flex items-center gap-5 p-6 bg-amber-500/5 rounded-2xl hover:bg-amber-500/10 border border-amber-500/10 transition-premium group"
+                    className="w-full flex items-center gap-4 p-4 bg-amber-500/5 rounded-2xl hover:bg-amber-500/10 border border-amber-500/10 transition-premium group"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-premium shadow-lg">
-                      <History className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-premium shadow-lg">
+                      <History className="w-5 h-5" />
                     </div>
-                    <span className="font-black text-lg uppercase tracking-tight italic text-amber-500">Zerar Contador</span>
+                    <span className="font-black text-base uppercase tracking-tight italic text-amber-500">Zerar Contador</span>
                   </motion.button>
+
                   <motion.button 
                     whileTap={{ scale: 0.95 }}
                     onTap={exportBackup}
-                    className="w-full flex items-center gap-5 p-6 bg-green-500/5 rounded-2xl hover:bg-green-500/10 border border-green-500/10 transition-premium group"
+                    className="w-full flex items-center gap-4 p-4 bg-green-500/5 rounded-2xl hover:bg-green-500/10 border border-green-500/10 transition-premium group"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-premium shadow-lg">
-                      <FileText className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-premium shadow-lg">
+                      <FileText className="w-5 h-5" />
                     </div>
-                    <span className="font-black text-lg uppercase tracking-tight italic text-green-500">Exportar Backup</span>
+                    <span className="font-black text-base uppercase tracking-tight italic text-green-500">Exportar Backup</span>
                   </motion.button>
 
                   <motion.button 
@@ -1276,27 +1277,27 @@ export default function PDVPage() {
                       await pullRecentSales();
                       alert('Sincronização concluída!');
                     }}
-                    className="w-full flex items-center gap-5 p-6 bg-cyan-500/5 rounded-2xl hover:bg-cyan-500/10 border border-cyan-500/10 transition-premium group"
+                    className="w-full flex items-center gap-4 p-4 bg-cyan-500/5 rounded-2xl hover:bg-cyan-500/10 border border-cyan-500/10 transition-premium group"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-500 group-hover:bg-cyan-500 group-hover:text-white transition-premium shadow-lg">
-                      <QrCode className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-500 group-hover:bg-cyan-500 group-hover:text-white transition-premium shadow-lg">
+                      <QrCode className="w-5 h-5" />
                     </div>
-                    <span className="font-black text-lg uppercase tracking-tight italic text-cyan-500">Sincronizar Dados</span>
+                    <span className="font-black text-base uppercase tracking-tight italic text-cyan-500">Sincronizar Dados</span>
                   </motion.button>
 
                   <motion.button 
                     whileTap={{ scale: 0.95 }}
                     onTap={() => window.open('/UaiPDV-2.apk', '_blank')}
-                    className="w-full flex items-center gap-5 p-6 bg-primary/5 rounded-2xl hover:bg-primary/10 border border-primary/10 transition-premium group"
+                    className="w-full flex items-center gap-4 p-4 bg-primary/5 rounded-2xl hover:bg-primary/10 border border-primary/10 transition-premium group"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-premium shadow-lg">
-                      <Smartphone className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-premium shadow-lg">
+                      <Smartphone className="w-5 h-5" />
                     </div>
                     <div className="text-left flex flex-col">
-                      <span className="font-black text-lg uppercase tracking-tight italic text-primary leading-none">Baixar Aplicativo</span>
-                      <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Instalar APK Nativo</span>
+                      <span className="font-black text-base uppercase tracking-tight italic text-primary leading-none">Baixar Aplicativo</span>
+                      <span className="text-[9px] font-bold opacity-40 uppercase tracking-widest mt-1">Instalar APK Nativo</span>
                     </div>
-                    <ChevronRight className="w-6 h-6 ml-auto opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-premium" />
+                    <ChevronRight className="w-5 h-5 ml-auto opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-premium" />
                   </motion.button>
 
                   <div className="pt-6 border-t border-white/5">
