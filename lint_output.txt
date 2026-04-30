@@ -1,0 +1,131 @@
+
+> pdv-app@0.1.0 lint
+> eslint
+
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/app/page.tsx
+    3:38  warning  'useRef' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   16:3   warning  'Calendar' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   18:3   warning  'Wifi' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   19:3   warning  'WifiOff' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+   22:3   warning  'XCircle' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+   23:3   warning  'Pencil' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   29:3   warning  'ArrowLeft' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+   31:3   warning  'CornerDownLeft' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+   38:29  warning  'calculateChange' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  253:9   error    Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/app/page.tsx:253:9
+  251 |     const uuid = typeof crypto.randomUUID === 'function' 
+  252 |       ? crypto.randomUUID() 
+> 253 |       : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      |         ^^^^^^^^^^^^^ Cannot call impure function
+  254 |
+  255 |     const sale: Sale = {
+  256 |       uuid,                                                 react-hooks/purity
+  253:55  error    Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/app/page.tsx:253:55
+  251 |     const uuid = typeof crypto.randomUUID === 'function' 
+  252 |       ? crypto.randomUUID() 
+> 253 |       : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      |                                                       ^^^^^^^^^^^^^ Cannot call impure function
+  254 |
+  255 |     const sale: Sale = {
+  256 |       uuid,  react-hooks/purity
+  778:74  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/hooks/useOfflineSync.ts
+  26:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/hooks/useOfflineSync.ts:26:5
+  24 |
+  25 |   useEffect(() => {
+> 26 |     setIsOnline(navigator.onLine);
+     |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  27 |
+  28 |     const handleOnline = () => {
+  29 |       setIsOnline(true);                                                                                                             react-hooks/set-state-in-effect
+  30:7  error    Error: Cannot access variable before it is declared
+
+`syncPendingSales` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/hooks/useOfflineSync.ts:30:7
+  28 |     const handleOnline = () => {
+  29 |       setIsOnline(true);
+> 30 |       syncPendingSales();
+     |       ^^^^^^^^^^^^^^^^ `syncPendingSales` accessed before it is declared
+  31 |       pullRecentSales();
+  32 |     };
+  33 |     
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/hooks/useOfflineSync.ts:95:3
+   93 |   };
+   94 |
+>  95 |   const syncPendingSales = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  96 |     if (syncing || !navigator.onLine) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  97 |     
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 137 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 138 |   };
+      | ^^^^^ `syncPendingSales` is declared here
+  139 |
+  140 |   return { isOnline, syncing, pendingCount, lastSyncTime };
+  141 | }  react-hooks/immutability
+  31:7  error    Error: Cannot access variable before it is declared
+
+`pullRecentSales` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/hooks/useOfflineSync.ts:31:7
+  29 |       setIsOnline(true);
+  30 |       syncPendingSales();
+> 31 |       pullRecentSales();
+     |       ^^^^^^^^^^^^^^^ `pullRecentSales` accessed before it is declared
+  32 |     };
+  33 |     
+  34 |     const handleOffline = () => setIsOnline(false);
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/hooks/useOfflineSync.ts:60:3
+  58 |   }, []);
+  59 |
+> 60 |   const pullRecentSales = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 61 |     if (!navigator.onLine) return;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 62 |     
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 92 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 93 |   };
+     | ^^^^^ `pullRecentSales` is declared here
+  94 |
+  95 |   const syncPendingSales = async () => {
+  96 |     if (syncing || !navigator.onLine) return;                   react-hooks/immutability
+  58:6  warning  React Hook useEffect has a missing dependency: 'syncPendingSales'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/lib/mock-data.ts
+   1:10  warning  'Product' is defined but never used       @typescript-eslint/no-unused-vars
+   1:19  warning  'Addon' is defined but never used         @typescript-eslint/no-unused-vars
+  11:27  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:29  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/alefalves/Downloads/05 - TEO PDV APP/public/sw.js
+  4:35  warning  'event' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 21 problems (8 errors, 13 warnings)
+

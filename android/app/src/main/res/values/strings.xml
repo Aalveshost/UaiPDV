@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Uai PDV</string>
+    <string name="title_activity_main">Uai PDV</string>
+    <string name="package_name">com.uaipdv.app</string>
+    <string name="custom_url_scheme">com.uaipdv.app</string>
+</resources>
