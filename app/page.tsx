@@ -468,7 +468,13 @@ export default function PDVPage() {
 
       // Item Ranking
       sale.items.forEach(item => {
-        stats.ranking[item.name] = (stats.ranking[item.name] || 0) + item.quantity;
+        // Create a unique key for the product + its addons
+        let rankingKey = item.name;
+        if (item.addons && item.addons.length > 0) {
+          const addonNames = item.addons.map(a => a.name).sort().join(', ');
+          rankingKey = `${item.name} (${addonNames})`;
+        }
+        stats.ranking[rankingKey] = (stats.ranking[rankingKey] || 0) + item.quantity;
       });
     });
 
@@ -1151,7 +1157,7 @@ export default function PDVPage() {
                     <h4 className="font-black text-sm uppercase leading-tight mb-1">{item.name}</h4>
                     <div className="flex flex-wrap gap-1 mb-1">
                       {item.addons?.map((a, i) => (
-                        <span key={i} className="text-[7px] font-black uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-md">
+                        <span key={i} className="text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-md">
                           + {a.name}
                         </span>
                       ))}
@@ -1590,9 +1596,10 @@ export default function PDVPage() {
                             </div>
                           </motion.div>
                         )}
-                    </AnimatePresence>
+                      </AnimatePresence>
+                    </div>
                   </div>
-                </div>
+                </>
             )}
           </motion.div>
         )}
