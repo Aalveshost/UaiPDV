@@ -1139,18 +1139,15 @@ export default function PDVPage() {
         </main>
       </div>
 
-      {/* Right Side: Cart (40%) */}
       <div className="w-[340px] lg:w-[380px] h-full flex flex-col bg-card shadow-[-20px_0_40px_rgba(0,0,0,0.5)] relative z-10 border-l border-white/5">
-        <div className="p-4 border-b border-white/5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-lg lg:text-xl uppercase italic tracking-tighter">Carrinho</h3>
-            <div className="px-3 py-0.5 bg-primary text-white rounded-full font-black text-xs shadow-lg shadow-primary/20">
-              {cart.reduce((s, i) => s + i.quantity, 0)}
-            </div>
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+          <h3 className="font-black text-xl lg:text-2xl uppercase italic tracking-tighter">Carrinho</h3>
+          <div className="px-3 py-1 bg-primary text-white rounded-full font-black text-sm shadow-lg shadow-primary/20">
+            {cart.reduce((s, i) => s + i.quantity, 0)}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 scrollbar-visible custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-visible custom-scrollbar">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10 text-center p-8">
               <div className="w-24 h-24 rounded-2xl bg-white/5 flex items-center justify-center mb-4 border border-white/5">
