@@ -1311,8 +1311,7 @@ export default function PDVPage() {
                 </motion.button>
               </div>
             </motion.div>
-          </motion.div>
-        )}
+          )}
       </div>
 
       <div className={cn(
@@ -1594,12 +1593,10 @@ export default function PDVPage() {
                     </AnimatePresence>
                   </div>
                 </div>
-              </>
             )}
           </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+        )}
+      </div>
 
       {/* History Modal */}
       <AnimatePresence>
