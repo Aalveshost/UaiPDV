@@ -25,7 +25,12 @@ import {
   Delete,
   Space,
   History,
-  FileText
+  FileText,
+  Pencil,
+  Clock,
+  Search,
+  X,
+  RotateCcw
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
