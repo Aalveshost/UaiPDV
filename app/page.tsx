@@ -423,7 +423,7 @@ export default function PDVPage() {
                await db.addons.delete(payload.old.id);
             } else {
                const a = payload.new;
-               await db.addons.put({ id: a.id, name: a.name, price: Number(a.price), visible: a.visible });
+               await db.addons.put({ id: a.id, name: a.name, price: Number(a.price), visible: a.visible, product_ids: a.product_ids || [] });
             }
             await loadAddons();
         })
@@ -1880,7 +1880,16 @@ export default function PDVPage() {
                       ))}
                     </div>
 
-                    <div className="pt-5 border-t border-white/5 space-y-4 mt-auto">
+                    <div className="pt-5 border-t border-white/5 space-y-3 mt-auto">
+                      <a 
+                        href="/UaiPDV-2.apk" 
+                        download
+                        className="w-full flex items-center justify-center gap-3 p-4 bg-green-500/10 text-green-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-green-500/20 transition-premium border border-green-500/10"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                        Baixar Versão Android (APK)
+                      </a>
+
                       <motion.button 
                         whileTap={{ scale: 0.95 }}
                         onTap={() => { setIsAdminVerified(false); setAdminPass(''); }}
@@ -2596,59 +2605,76 @@ export default function PDVPage() {
                   <div className="flex flex-col gap-4">
                     <label className="text-xs font-black uppercase opacity-40 ml-1">Vincular a Produtos</label>
                     <div className="flex-1 bg-black/20 rounded-3xl p-6 border border-white/5 overflow-y-auto custom-scrollbar flex flex-col gap-6 content-start">
-                      {categories.map(cat => {
-                        const catProds = products.filter(p => p.category === cat.name);
-                        if (catProds.length === 0) return null;
-                        
-                        return (
-                          <div key={cat.id} className="space-y-3">
-                            <div className="flex items-center justify-between px-1">
-                              <h4 className="text-[10px] font-black uppercase text-primary italic">{cat.name}</h4>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const allIds = catProds.map(p => p.id!);
-                                  const allSelected = allIds.every(id => addonFormProducts.includes(id));
-                                  if (allSelected) {
-                                    setAddonFormProducts(prev => prev.filter(id => !allIds.includes(id)));
-                                  } else {
-                                    setAddonFormProducts(prev => [...new Set([...prev, ...allIds])]);
-                                  }
-                                }}
-                                className="text-[8px] font-black uppercase opacity-40 hover:opacity-100 hover:text-primary transition-premium"
-                              >
-                                {catProds.every(p => addonFormProducts.includes(p.id!)) ? 'Desmarcar Tudo' : 'Marcar Tudo'}
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {catProds.map(prod => {
-                                const isSelected = addonFormProducts.includes(prod.id!);
-                                return (
+                      {categories.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full opacity-20 py-10">
+                          <p className="font-black uppercase text-xs">Nenhuma categoria cadastrada</p>
+                        </div>
+                      ) : (
+                        (() => {
+                          const renderedCategories = categories.map(cat => {
+                            const catProds = products.filter(p => p.category?.trim() === cat.name?.trim());
+                            if (catProds.length === 0) return null;
+                            
+                            return (
+                              <div key={cat.id} className="space-y-3">
+                                <div className="flex items-center justify-between px-1">
+                                  <h4 className="text-[10px] font-black uppercase text-primary italic">{cat.name}</h4>
                                   <button
-                                    key={prod.id}
                                     type="button"
                                     onClick={() => {
-                                      setAddonFormProducts(prev => 
-                                        isSelected ? prev.filter(id => id !== prod.id) : [...prev, prod.id!]
-                                      );
+                                      const allIds = catProds.map(p => p.id!);
+                                      const allSelected = allIds.every(id => addonFormProducts.includes(id));
+                                      if (allSelected) {
+                                        setAddonFormProducts(prev => prev.filter(id => !allIds.includes(id)));
+                                      } else {
+                                        setAddonFormProducts(prev => [...new Set([...prev, ...allIds])]);
+                                      }
                                     }}
-                                    className={cn(
-                                      "flex items-center justify-between p-3 rounded-xl border transition-premium text-left relative overflow-hidden",
-                                      isSelected ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/10" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
-                                    )}
+                                    className="text-[8px] font-black uppercase opacity-40 hover:opacity-100 hover:text-primary transition-premium"
                                   >
-                                    <span className="font-black uppercase text-[9px] tracking-tight truncate mr-1 relative z-10">{prod.name}</span>
-                                    <div className={cn("w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-premium relative z-10", isSelected ? "bg-primary text-white scale-110" : "bg-white/10")}>
-                                      {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                                    </div>
-                                    {isSelected && <div className="absolute inset-0 bg-primary/5 animate-pulse" />}
+                                    {catProds.every(p => addonFormProducts.includes(p.id!)) ? 'Desmarcar Tudo' : 'Marcar Tudo'}
                                   </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {catProds.map(prod => {
+                                    const isSelected = addonFormProducts.includes(prod.id!);
+                                    return (
+                                      <button
+                                        key={prod.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setAddonFormProducts(prev => 
+                                            isSelected ? prev.filter(id => id !== prod.id) : [...prev, prod.id!]
+                                          );
+                                        }}
+                                        className={cn(
+                                          "flex items-center justify-between p-3 rounded-xl border transition-premium text-left relative overflow-hidden",
+                                          isSelected ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/10" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
+                                        )}
+                                      >
+                                        <span className="font-black uppercase text-[9px] tracking-tight truncate mr-1 relative z-10">{prod.name}</span>
+                                        <div className={cn("w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-premium relative z-10", isSelected ? "bg-primary text-white scale-110" : "bg-white/10")}>
+                                          {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                                        </div>
+                                        {isSelected && <div className="absolute inset-0 bg-primary/5 animate-pulse" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }).filter(Boolean);
+
+                          if (renderedCategories.length === 0) {
+                            return (
+                              <div className="flex flex-col items-center justify-center h-full opacity-20 py-10">
+                                <p className="font-black uppercase text-xs">Nenhum produto disponível para vincular</p>
+                              </div>
+                            );
+                          }
+                          return renderedCategories;
+                        })()
+                      )}
                     </div>
                   </div>
                 </div>
