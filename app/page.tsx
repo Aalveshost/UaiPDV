@@ -2602,7 +2602,24 @@ export default function PDVPage() {
                         
                         return (
                           <div key={cat.id} className="space-y-3">
-                            <h4 className="text-[10px] font-black uppercase text-primary italic px-1">{cat.name}</h4>
+                            <div className="flex items-center justify-between px-1">
+                              <h4 className="text-[10px] font-black uppercase text-primary italic">{cat.name}</h4>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const allIds = catProds.map(p => p.id!);
+                                  const allSelected = allIds.every(id => addonFormProducts.includes(id));
+                                  if (allSelected) {
+                                    setAddonFormProducts(prev => prev.filter(id => !allIds.includes(id)));
+                                  } else {
+                                    setAddonFormProducts(prev => [...new Set([...prev, ...allIds])]);
+                                  }
+                                }}
+                                className="text-[8px] font-black uppercase opacity-40 hover:opacity-100 hover:text-primary transition-premium"
+                              >
+                                {catProds.every(p => addonFormProducts.includes(p.id!)) ? 'Desmarcar Tudo' : 'Marcar Tudo'}
+                              </button>
+                            </div>
                             <div className="grid grid-cols-2 gap-2">
                               {catProds.map(prod => {
                                 const isSelected = addonFormProducts.includes(prod.id!);
@@ -2616,14 +2633,15 @@ export default function PDVPage() {
                                       );
                                     }}
                                     className={cn(
-                                      "flex items-center justify-between p-3 rounded-xl border transition-premium text-left",
-                                      isSelected ? "bg-primary/10 border-primary/40 text-white" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
+                                      "flex items-center justify-between p-3 rounded-xl border transition-premium text-left relative overflow-hidden",
+                                      isSelected ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/10" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
                                     )}
                                   >
-                                    <span className="font-black uppercase text-[9px] tracking-tight truncate mr-1">{prod.name}</span>
-                                    <div className={cn("w-4 h-4 rounded flex items-center justify-center shrink-0", isSelected ? "bg-primary text-white" : "bg-white/10")}>
-                                      {isSelected && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                    <span className="font-black uppercase text-[9px] tracking-tight truncate mr-1 relative z-10">{prod.name}</span>
+                                    <div className={cn("w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-premium relative z-10", isSelected ? "bg-primary text-white scale-110" : "bg-white/10")}>
+                                      {isSelected && <CheckCircle2 className="w-3 h-3" />}
                                     </div>
+                                    {isSelected && <div className="absolute inset-0 bg-primary/5 animate-pulse" />}
                                   </button>
                                 );
                               })}
