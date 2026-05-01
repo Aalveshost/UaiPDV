@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uai-pdv-v2.5.4';
+const CACHE_NAME = 'uai-pdv-v2.5.6';
 
 // Estratégia: Cache First (Tenta o que está salvo, se não tiver, busca na rede e salva)
 self.addEventListener('install', () => {

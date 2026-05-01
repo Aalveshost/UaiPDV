@@ -710,7 +710,13 @@ export default function PDVPage() {
 
       if (isOnline) {
         const addon = await db.addons.get(addonId);
-        if (addon) supabase.from('addons').upsert({ id: addon.id, name: addon.name, price: addon.price, visible: addon.visible }).then();
+        if (addon) supabase.from('addons').upsert({ 
+          id: addon.id, 
+          name: addon.name, 
+          price: addon.price, 
+          visible: addon.visible,
+          product_ids: addon.product_ids || []
+        }).then();
       }
     } catch (err) {
       console.error('Erro ao salvar adicional:', err);
@@ -729,7 +735,13 @@ export default function PDVPage() {
     
     if (isOnline) {
       const addon = await db.addons.get(id);
-      if (addon) supabase.from('addons').upsert({ id: addon.id, name: addon.name, price: addon.price, visible: addon.visible }).then();
+      if (addon) supabase.from('addons').upsert({ 
+        id: addon.id, 
+        name: addon.name, 
+        price: addon.price, 
+        visible: addon.visible,
+        product_ids: addon.product_ids || []
+      }).then();
     }
   };
 
