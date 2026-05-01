@@ -1007,27 +1007,36 @@ export default function PDVPage() {
     setPayments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleProductClick = (product: Product) => {
-    // Check if product has any potential addons linked
-    const hasAddons = addons.some(a => 
-      a.visible && (a.product_ids?.includes(product.id) || (product.addons && product.addons.includes(a.id)))
+  const openProductOptions = (product: Product) => {
+    // Find addons for this product
+    const linkedAddons = addons.filter(a => 
+      a.visible && (a.product_ids?.includes(product.id) || product.addons?.includes(a.id))
     );
 
-    if (!hasAddons) {
-      // Direct add to cart if no addons exist for this item
+    if (linkedAddons.length === 0) {
+      // Direct add to cart if no addons
       const newItem: SaleItem = {
-        productId: product.id,
-        name: product.name,
-        price: product.price,
+        ...product,
         quantity: 1,
-        image: product.image,
         addons: []
       };
-      setCart(prev => [...prev, newItem]);
+
+      // Check if exact same item already in cart (no addons case is simple)
+      const existingItemIndex = cart.findIndex(item => 
+        item.id === product.id && (!item.addons || item.addons.length === 0)
+      );
+
+      if (existingItemIndex > -1) {
+        const newCart = [...cart];
+        newCart[existingItemIndex].quantity += 1;
+        setCart(newCart);
+      } else {
+        setCart(prev => [...prev, newItem]);
+      }
       return;
     }
 
-    // Otherwise show the modal for options/addons
+    // Otherwise show modal
     setSelectedProduct(product);
     setTempQuantity(1);
     setTempAddons([]);
@@ -1131,7 +1140,7 @@ export default function PDVPage() {
               <ProductCard 
                 key={product.id} 
                 product={product} 
-                onClick={handleProductClick} 
+                onClick={openProductOptions} 
               />
             ))}
           </div>
@@ -1233,17 +1242,17 @@ export default function PDVPage() {
         </div>
       </div>
 
-      {/* Modals with AnimatePresence */}
-      <AnimatePresence>
+      {/* Modals - Permanent containers for speed */}
+      <div className={cn(
+        "fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-200",
+        selectedProduct ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+      )}>
         {selectedProduct && (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.1 }}
-              className="bg-card w-full max-w-5xl rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 flex flex-col lg:flex-row max-h-[90vh] py-2"
-            >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card w-full max-w-5xl rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 flex flex-col lg:flex-row max-h-[90vh] py-2"
+          >
               <div className="w-full lg:w-1/2 p-8 lg:p-10 border-r border-white/5 bg-white/5 overflow-y-auto">
                 <motion.button 
                   type="button"
@@ -1331,18 +1340,20 @@ export default function PDVPage() {
                 </motion.button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
+      </div>
 
+      <div className={cn(
+        "fixed inset-0 z-[1000] flex items-center justify-center p-2 lg:p-4 bg-black/80 backdrop-blur-xl transition-all duration-200",
+        isCheckoutOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+      )}>
         {isCheckoutOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 lg:p-4 bg-black/80 backdrop-blur-xl">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.15 }}
-              className="bg-card w-full max-w-6xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col lg:flex-row h-[95dvh]"
-            >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card w-full max-w-6xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col lg:flex-row h-[95dvh]"
+          >
               {isSuccess ? (
                 <div className="w-full p-10 text-center flex flex-col items-center justify-center gap-4">
                   <motion.div 
