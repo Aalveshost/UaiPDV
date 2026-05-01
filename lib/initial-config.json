@@ -1,0 +1,24 @@
+{
+  "categories": [
+    "CHURRASCO",
+    "BEBIDAS",
+    "COMBOS",
+    "PORÇÕES",
+    "SOBREMESAS"
+  ],
+  "products": [
+    { "name": "Espetinho de Carne", "price": 12.00, "category": "CHURRASCO", "available": true },
+    { "name": "Espetinho de Frango", "price": 10.00, "category": "CHURRASCO", "available": true },
+    { "name": "Cerveja Lata", "price": 6.00, "category": "BEBIDAS", "available": true },
+    { "name": "Refrigerante Lata", "price": 5.00, "category": "BEBIDAS", "available": true },
+    { "name": "Água Mineral", "price": 3.00, "category": "BEBIDAS", "available": true },
+    { "name": "Combo Família", "price": 85.00, "category": "COMBOS", "available": true },
+    { "name": "Batata Frita G", "price": 25.00, "category": "PORÇÕES", "available": true },
+    { "name": "Pudim", "price": 8.00, "category": "SOBREMESAS", "available": true }
+  ],
+  "addons": [
+    { "name": "Queijo Extra", "price": 2.50, "visible": true },
+    { "name": "Bacon Extra", "price": 3.50, "visible": true },
+    { "name": "Molho Especial", "price": 1.50, "visible": true }
+  ]
+}

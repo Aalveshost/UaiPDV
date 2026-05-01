@@ -90,6 +90,21 @@ export function useOfflineSync() {
     }
   }, []); // stable — does not depend on syncing state
 
+  const pushMenu = useCallback(async () => {
+    if (!navigator.onLine) return;
+    try {
+      const cats = await db.categories.toArray();
+      const prods = await db.products.toArray();
+      const ads = await db.addons.toArray();
+
+      if (cats.length) await supabase.from('categories').upsert(cats.map(c => ({ id: c.id, name: c.name, order: c.order, visible: c.visible })));
+      if (prods.length) await supabase.from('products').upsert(prods.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category, available: p.available, image: p.image, addon_ids: p.addons || [], order: p.order })));
+      if (ads.length) await supabase.from('addons').upsert(ads.map(a => ({ id: a.id, name: a.name, price: a.price, visible: a.visible, category_names: a.category_names || [] })));
+    } catch (err) {
+      console.error('Failed to push menu:', err);
+    }
+  }, []);
+
   // Update pending count every 15s
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -112,7 +127,10 @@ export function useOfflineSync() {
 
     const handleOnline = () => {
       setIsOnline(true);
-      setTimeout(() => { syncPendingSales(); }, 1000);
+      setTimeout(() => { 
+        syncPendingSales(); 
+        pushMenu();
+      }, 1000);
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -139,7 +157,52 @@ export function useOfflineSync() {
       window.removeEventListener('offline', handleOffline);
       clearTimeout(syncTimer);
     };
-  }, [syncPendingSales, pullRecentSales]); // both are now stable references
+  }, [syncPendingSales, pullRecentSales, pushMenu]); // both are now stable references
 
-  return { isOnline, syncing, pendingCount, lastSyncTime, pullRecentSales };
+  const pullMenu = useCallback(async () => {
+    if (!navigator.onLine) return;
+    try {
+      setSyncing(true);
+      
+      // Pull Categories
+      const { data: catData, error: catError } = await supabase.from('categories').select('*').order('order');
+      if (!catError && catData) {
+        await db.categories.clear();
+        await db.categories.bulkAdd(catData.map(c => ({ id: c.id, name: c.name, order: c.order, visible: c.visible })));
+      }
+
+      // Pull Products
+      const { data: prodData, error: prodError } = await supabase.from('products').select('*');
+      if (!prodError && prodData) {
+        await db.products.clear();
+        await db.products.bulkAdd(prodData.map(p => ({ 
+          id: p.id, 
+          name: p.name, 
+          price: Number(p.price), 
+          category: p.category, 
+          available: p.available,
+          image: p.image,
+          order: p.order,
+          addons: p.addon_ids || []
+        })));
+      }
+
+      // Pull Addons
+      const { data: adData, error: adError } = await supabase.from('addons').select('*');
+      if (!adError && adData) {
+        await db.addons.clear();
+        await db.addons.bulkAdd(adData.map(a => ({ id: a.id, name: a.name, price: Number(a.price), visible: a.visible, category_names: a.category_names || [] })));
+      }
+
+      setLastSyncTime(new Date());
+      return true;
+    } catch (err) {
+      console.error('Failed to pull menu:', err);
+      return false;
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  return { isOnline, syncing, pendingCount, lastSyncTime, pullRecentSales, pullMenu, syncPendingSales };
 }

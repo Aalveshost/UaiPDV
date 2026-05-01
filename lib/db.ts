@@ -5,6 +5,7 @@ export interface SaleItem {
   name: string;
   price: number;
   quantity: number;
+  image?: string;
   addons?: { name: string; price: number }[];
 }
 
@@ -32,18 +33,29 @@ export interface Product {
   image?: string;
   addons?: number[]; // IDs of addons
   available: boolean;
+  order?: number;
 }
 
 export interface Addon {
   id: number;
   name: string;
   price: number;
+  visible: boolean;
+  category_names?: string[];
+}
+
+export interface Category {
+  id?: number;
+  name: string;
+  order: number;
+  visible: boolean;
 }
 
 export class MaktubDatabase extends Dexie {
   sales!: Table<Sale>;
   products!: Table<Product>;
   addons!: Table<Addon>;
+  categories!: Table<Category>;
 
   constructor() {
     super('MaktubPDV');
@@ -51,6 +63,12 @@ export class MaktubDatabase extends Dexie {
       sales: '++id, uuid, displayId, date, synced',
       products: '++id, name, category, available',
       addons: '++id, name'
+    });
+    this.version(2).stores({
+      categories: '++id, name, order, visible'
+    });
+    this.version(3).stores({
+      products: '++id, name, category, available, order'
     });
   }
 }
