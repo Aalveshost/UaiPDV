@@ -99,7 +99,7 @@ export function useOfflineSync() {
 
       if (cats.length) await supabase.from('categories').upsert(cats.map(c => ({ id: c.id, name: c.name, order: c.order, visible: c.visible })));
       if (prods.length) await supabase.from('products').upsert(prods.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category, available: p.available, image: p.image, addon_ids: p.addons || [], order: p.order })));
-      if (ads.length) await supabase.from('addons').upsert(ads.map(a => ({ id: a.id, name: a.name, price: a.price, visible: a.visible, category_names: a.category_names || [] })));
+      if (ads.length) await supabase.from('addons').upsert(ads.map(a => ({ id: a.id, name: a.name, price: a.price, visible: a.visible, product_ids: a.product_ids || [] })));
     } catch (err) {
       console.error('Failed to push menu:', err);
     }
@@ -191,7 +191,7 @@ export function useOfflineSync() {
       const { data: adData, error: adError } = await supabase.from('addons').select('*');
       if (!adError && adData) {
         await db.addons.clear();
-        await db.addons.bulkAdd(adData.map(a => ({ id: a.id, name: a.name, price: Number(a.price), visible: a.visible, category_names: a.category_names || [] })));
+        await db.addons.bulkAdd(adData.map(a => ({ id: a.id, name: a.name, price: Number(a.price), visible: a.visible, product_ids: a.product_ids || [] })));
       }
 
       setLastSyncTime(new Date());

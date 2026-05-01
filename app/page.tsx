@@ -248,7 +248,7 @@ export default function PDVPage() {
   const [editingAddon, setEditingAddon] = useState<Addon | null>(null);
   const [addonFormName, setAddonFormName] = useState('');
   const [addonFormPrice, setAddonFormPrice] = useState('0');
-  const [addonFormCategories, setAddonFormCategories] = useState<string[]>([]);
+  const [addonFormProducts, setAddonFormProducts] = useState<number[]>([]);
   const [addonFocusedInput, setAddonFocusedInput] = useState<'name' | 'price' | null>(null);
   const [productFormAddons, setProductFormAddons] = useState<number[]>([]);
   const [cartIndexEditing, setCartIndexEditing] = useState<number | null>(null);
@@ -285,12 +285,16 @@ export default function PDVPage() {
 
   const addonsForSelectedProduct = useMemo(() => {
     if (!selectedProduct) return [];
-    return addons.filter(a => {
-      if (!a.visible) return false;
-      const linkedToCategory = a.category_names?.includes(selectedProduct.category);
-      const linkedToProduct = selectedProduct.addons?.includes(a.id);
-      return linkedToCategory || linkedToProduct;
-    });
+    return addons
+      .filter(a => {
+        if (!a.visible) return false;
+        // Show if explicitly linked to product (from either side)
+        const linkedFromAddon = a.product_ids?.includes(selectedProduct.id);
+        const linkedFromProduct = selectedProduct.addons?.includes(a.id);
+        
+        return linkedFromAddon || linkedFromProduct;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [addons, selectedProduct]);
 
   // Initialize Storage Persistence, Register SW and Keep Screen On
@@ -660,7 +664,7 @@ export default function PDVPage() {
         prodId = editingProduct.id;
         await db.products.update(prodId, finalData);
       } else {
-        prodId = await db.products.add({ 
+        const newProduct = { 
           ...finalData,
           name: data.name!, 
           price: data.price!, 
@@ -668,7 +672,9 @@ export default function PDVPage() {
           available: true,
           image: data.image,
           order: products.length
-        }) as number;
+        };
+        delete (newProduct as any).id;
+        prodId = await db.products.add(newProduct as Product) as number;
       }
       const prods = await db.products.toArray();
       setProducts(prods);
@@ -698,12 +704,14 @@ export default function PDVPage() {
   const saveAddon = async (data: { name: string, price: number }) => {
     try {
       let addonId: number;
-      const finalData = { ...data, category_names: addonFormCategories, visible: true };
+      const finalData = { ...data, product_ids: addonFormProducts, visible: true };
       if (editingAddon) {
         addonId = editingAddon.id!;
         await db.addons.update(addonId, finalData);
       } else {
-        addonId = await db.addons.add(finalData as Addon) as number;
+        const newAddon = { ...finalData };
+        delete (newAddon as any).id;
+        addonId = await db.addons.add(newAddon as Addon) as number;
       }
       const updated = await db.addons.toArray();
       setAddons(updated);
@@ -2240,7 +2248,7 @@ export default function PDVPage() {
                             setEditingAddon(ad); 
                             setAddonFormName(ad.name);
                             setAddonFormPrice(ad.price.toString().replace('.', ','));
-                            setAddonFormCategories(ad.category_names || []);
+                            setAddonFormProducts(ad.product_ids || []);
                             setAddonFocusedInput('name');
                             setIsAddonFormOpen(true); 
                           }} 
@@ -2282,7 +2290,7 @@ export default function PDVPage() {
                   setEditingAddon(null); 
                   setAddonFormName('');
                   setAddonFormPrice('0');
-                  setAddonFormCategories([]);
+                  setAddonFormProducts([]);
                   setAddonFocusedInput('name');
                   setIsAddonFormOpen(true); 
                 }}
@@ -2584,31 +2592,43 @@ export default function PDVPage() {
                     </div>
                   </div>
 
-                  {/* Right Column: Category Links */}
+                  {/* Right Column: Product Links */}
                   <div className="flex flex-col gap-4">
-                    <label className="text-xs font-black uppercase opacity-40 ml-1">Vincular a Categorias</label>
-                    <div className="flex-1 bg-black/20 rounded-3xl p-6 border border-white/5 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-3 content-start">
+                    <label className="text-xs font-black uppercase opacity-40 ml-1">Vincular a Produtos</label>
+                    <div className="flex-1 bg-black/20 rounded-3xl p-6 border border-white/5 overflow-y-auto custom-scrollbar flex flex-col gap-6 content-start">
                       {categories.map(cat => {
-                        const isSelected = addonFormCategories.includes(cat.name);
+                        const catProds = products.filter(p => p.category === cat.name);
+                        if (catProds.length === 0) return null;
+                        
                         return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => {
-                              setAddonFormCategories(prev => 
-                                isSelected ? prev.filter(n => n !== cat.name) : [...prev, cat.name]
-                              );
-                            }}
-                            className={cn(
-                              "flex items-center justify-between p-4 rounded-xl border transition-premium text-left",
-                              isSelected ? "bg-primary/20 border-primary text-white" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
-                            )}
-                          >
-                            <span className="font-black uppercase text-[10px] tracking-widest">{cat.name}</span>
-                            <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0", isSelected ? "bg-primary text-white" : "bg-white/10")}>
-                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          <div key={cat.id} className="space-y-3">
+                            <h4 className="text-[10px] font-black uppercase text-primary italic px-1">{cat.name}</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              {catProds.map(prod => {
+                                const isSelected = addonFormProducts.includes(prod.id!);
+                                return (
+                                  <button
+                                    key={prod.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setAddonFormProducts(prev => 
+                                        isSelected ? prev.filter(id => id !== prod.id) : [...prev, prod.id!]
+                                      );
+                                    }}
+                                    className={cn(
+                                      "flex items-center justify-between p-3 rounded-xl border transition-premium text-left",
+                                      isSelected ? "bg-primary/10 border-primary/40 text-white" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
+                                    )}
+                                  >
+                                    <span className="font-black uppercase text-[9px] tracking-tight truncate mr-1">{prod.name}</span>
+                                    <div className={cn("w-4 h-4 rounded flex items-center justify-center shrink-0", isSelected ? "bg-primary text-white" : "bg-white/10")}>
+                                      {isSelected && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

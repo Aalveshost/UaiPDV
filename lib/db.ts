@@ -41,7 +41,7 @@ export interface Addon {
   name: string;
   price: number;
   visible: boolean;
-  category_names?: string[];
+  product_ids?: number[];
 }
 
 export interface Category {
