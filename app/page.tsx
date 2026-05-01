@@ -2533,85 +2533,84 @@ export default function PDVPage() {
                 className="flex flex-col gap-8"
               >
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  {/* Left Column: Name */}
-                  <div className="space-y-6">
-                    <div 
-                      className="space-y-1.5 cursor-pointer"
-                      onClick={() => setAddonFocusedInput('name')}
-                    >
-                      <label className="text-xs font-black uppercase opacity-40 ml-1">Nome do Adicional</label>
-                      <div className={cn("w-full bg-white/5 border rounded-xl px-5 py-4 font-black text-lg transition-premium", addonFocusedInput === 'name' ? "border-primary shadow-lg shadow-primary/20 text-white" : "border-white/10 text-white/50")}>
-                        {addonFormName || <span className="opacity-20">EX: QUEIJO EXTRA</span>}
+                  {/* Left Column: Inputs and Keyboard */}
+                  <div className="flex flex-col gap-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div 
+                        className="space-y-1.5 cursor-pointer"
+                        onClick={() => setAddonFocusedInput('name')}
+                      >
+                        <label className="text-xs font-black uppercase opacity-40 ml-1">Nome</label>
+                        <div className={cn("w-full bg-white/5 border rounded-xl px-5 py-4 font-black text-base transition-premium", addonFocusedInput === 'name' ? "border-primary shadow-lg shadow-primary/20 text-white" : "border-white/10 text-white/50")}>
+                          {addonFormName || <span className="opacity-20">EX: BACON</span>}
+                        </div>
+                      </div>
+
+                      <div 
+                        className="space-y-1.5 cursor-pointer"
+                        onClick={() => setAddonFocusedInput('price')}
+                      >
+                        <label className="text-xs font-black uppercase opacity-40 ml-1">Preço (R$)</label>
+                        <div className={cn("w-full bg-white/5 border rounded-xl px-5 py-4 font-black text-xl transition-premium", addonFocusedInput === 'price' ? "border-green-500 shadow-lg shadow-green-500/20 text-green-500" : "border-white/10 text-white/50")}>
+                          {addonFormPrice || '0'}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="bg-black/40 rounded-3xl p-4 border border-white/5 shadow-inner">
-                      <VirtualKeyboard 
-                        onInput={(v) => {
-                          if (addonFocusedInput === 'name') setAddonFormName(prev => prev + v);
-                        }}
-                        onDelete={() => {
-                          if (addonFocusedInput === 'name') setAddonFormName(prev => prev.slice(0, -1));
-                        }}
-                        onSpace={() => {
-                          if (addonFocusedInput === 'name') setAddonFormName(prev => prev + ' ');
-                        }}
-                      />
+                    <div className="bg-black/40 rounded-3xl p-6 border border-white/5 shadow-inner min-h-[300px] flex items-center justify-center">
+                      {addonFocusedInput === 'price' ? (
+                        <Numpad 
+                          onInput={(v) => {
+                            if (addonFormPrice === '0' && v !== ',') setAddonFormPrice(v);
+                            else if (v === ',' && addonFormPrice.includes(',')) return;
+                            else setAddonFormPrice(prev => prev + v);
+                          }}
+                          onDelete={() => setAddonFormPrice(prev => prev.length > 1 ? prev.slice(0, -1) : '0')}
+                          onClear={() => setAddonFormPrice('0')}
+                        />
+                      ) : (
+                        <VirtualKeyboard 
+                          onInput={(v) => {
+                            if (addonFocusedInput === 'name') setAddonFormName(prev => prev + v);
+                          }}
+                          onDelete={() => {
+                            if (addonFocusedInput === 'name') setAddonFormName(prev => prev.slice(0, -1));
+                          }}
+                          onSpace={() => {
+                            if (addonFocusedInput === 'name') setAddonFormName(prev => prev + ' ');
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
 
-                  {/* Right Column: Price and Category Links */}
-                  <div className="flex flex-col gap-6">
-                    <div 
-                      className="space-y-1.5 cursor-pointer"
-                      onClick={() => setAddonFocusedInput('price')}
-                    >
-                      <label className="text-xs font-black uppercase opacity-40 ml-1">Preço do Adicional</label>
-                      <div className={cn("w-full bg-white/5 border rounded-xl px-5 py-4 font-black text-2xl flex justify-between items-center transition-premium", addonFocusedInput === 'price' ? "border-green-500 text-green-500 shadow-lg shadow-green-500/20" : "border-white/10 text-white/50")}>
-                        <span>R$</span>
-                        <span>{addonFormPrice || '0'}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-xs font-black uppercase opacity-40 ml-1">Vincular a Categorias</label>
-                      <div className="bg-black/20 rounded-2xl p-4 border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar grid grid-cols-2 gap-2">
-                        {categories.map(cat => {
-                          const isSelected = addonFormCategories.includes(cat.name);
-                          return (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => {
-                                setAddonFormCategories(prev => 
-                                  isSelected ? prev.filter(n => n !== cat.name) : [...prev, cat.name]
-                                );
-                              }}
-                              className={cn(
-                                "flex items-center justify-between p-3 rounded-xl border transition-premium text-left",
-                                isSelected ? "bg-primary/20 border-primary text-white" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
-                              )}
-                            >
-                              <span className="font-black uppercase text-[9px] tracking-widest">{cat.name}</span>
-                              <div className={cn("w-4 h-4 rounded flex items-center justify-center shrink-0", isSelected ? "bg-primary text-white" : "bg-white/10")}>
-                                {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 bg-black/40 rounded-3xl p-4 border border-white/5 shadow-inner">
-                      <Numpad 
-                        onInput={(v) => {
-                          if (addonFormPrice === '0' && v !== ',') setAddonFormPrice(v);
-                          else if (v === ',' && addonFormPrice.includes(',')) return;
-                          else setAddonFormPrice(prev => prev + v);
-                        }}
-                        onDelete={() => setAddonFormPrice(prev => prev.length > 1 ? prev.slice(0, -1) : '0')}
-                        onClear={() => setAddonFormPrice('0')}
-                      />
+                  {/* Right Column: Category Links */}
+                  <div className="flex flex-col gap-4">
+                    <label className="text-xs font-black uppercase opacity-40 ml-1">Vincular a Categorias</label>
+                    <div className="flex-1 bg-black/20 rounded-3xl p-6 border border-white/5 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-3 content-start">
+                      {categories.map(cat => {
+                        const isSelected = addonFormCategories.includes(cat.name);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setAddonFormCategories(prev => 
+                                isSelected ? prev.filter(n => n !== cat.name) : [...prev, cat.name]
+                              );
+                            }}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-xl border transition-premium text-left",
+                              isSelected ? "bg-primary/20 border-primary text-white" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
+                            )}
+                          >
+                            <span className="font-black uppercase text-[10px] tracking-widest">{cat.name}</span>
+                            <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0", isSelected ? "bg-primary text-white" : "bg-white/10")}>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -2620,13 +2619,13 @@ export default function PDVPage() {
                   <button 
                     type="button"
                     onClick={() => setIsAddonFormOpen(false)}
-                    className="flex-1 py-5 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-sm tracking-widest transition-premium"
+                    className="flex-1 py-6 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-sm tracking-widest transition-premium"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
-                    className="flex-[2] py-5 bg-primary hover:bg-primary/90 rounded-2xl font-black uppercase text-sm tracking-widest text-white shadow-xl shadow-primary/20 transition-premium"
+                    className="flex-[2] py-6 bg-primary hover:bg-primary/90 rounded-2xl font-black uppercase text-sm tracking-widest text-white shadow-xl shadow-primary/20 transition-premium"
                   >
                     Salvar Adicional
                   </button>
