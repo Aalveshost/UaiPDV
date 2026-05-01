@@ -1008,35 +1008,6 @@ export default function PDVPage() {
   };
 
   const openProductOptions = (product: Product) => {
-    // Find addons for this product
-    const linkedAddons = addons.filter(a => 
-      a.visible && (a.product_ids?.includes(product.id) || product.addons?.includes(a.id))
-    );
-
-    if (linkedAddons.length === 0) {
-      // Direct add to cart if no addons
-      const newItem: SaleItem = {
-        ...product,
-        quantity: 1,
-        addons: []
-      };
-
-      // Check if exact same item already in cart (no addons case is simple)
-      const existingItemIndex = cart.findIndex(item => 
-        item.id === product.id && (!item.addons || item.addons.length === 0)
-      );
-
-      if (existingItemIndex > -1) {
-        const newCart = [...cart];
-        newCart[existingItemIndex].quantity += 1;
-        setCart(newCart);
-      } else {
-        setCart(prev => [...prev, newItem]);
-      }
-      return;
-    }
-
-    // Otherwise show modal
     setSelectedProduct(product);
     setTempQuantity(1);
     setTempAddons([]);
