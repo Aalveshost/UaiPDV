@@ -1007,7 +1007,27 @@ export default function PDVPage() {
     setPayments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const openProductOptions = (product: Product) => {
+  const handleProductClick = (product: Product) => {
+    // Check if product has any potential addons linked
+    const hasAddons = addons.some(a => 
+      a.visible && (a.product_ids?.includes(product.id) || (product.addons && product.addons.includes(a.id)))
+    );
+
+    if (!hasAddons) {
+      // Direct add to cart if no addons exist for this item
+      const newItem: SaleItem = {
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        image: product.image,
+        addons: []
+      };
+      setCart(prev => [...prev, newItem]);
+      return;
+    }
+
+    // Otherwise show the modal for options/addons
     setSelectedProduct(product);
     setTempQuantity(1);
     setTempAddons([]);
@@ -1111,7 +1131,7 @@ export default function PDVPage() {
               <ProductCard 
                 key={product.id} 
                 product={product} 
-                onClick={openProductOptions} 
+                onClick={handleProductClick} 
               />
             ))}
           </div>
