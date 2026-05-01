@@ -985,15 +985,28 @@ export default function PDVPage() {
   };
 
   // Calculations
-  const cartTotal = cart.reduce((acc, item) => {
-    const addonsTotal = item.addons?.reduce((sum, a) => sum + a.price, 0) || 0;
-    return acc + (item.price + addonsTotal) * item.quantity;
-  }, 0);
+  const cartTotal = useMemo(() => {
+    return cart.reduce((acc, item) => {
+      const addonsTotal = item.addons?.reduce((sum, a) => sum + a.price, 0) || 0;
+      return acc + (item.price + addonsTotal) * item.quantity;
+    }, 0);
+  }, [cart]);
   
-  const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
-  const remainingTotal = Math.max(0, cartTotal - totalPaid);
-  const hasCashPayment = payments.some(p => p.method === 'cash');
-  const change = (totalPaid > cartTotal && hasCashPayment) ? (totalPaid - cartTotal) : 0;
+  const totalPaid = useMemo(() => {
+    return payments.reduce((acc, p) => acc + p.amount, 0);
+  }, [payments]);
+
+  const remainingTotal = useMemo(() => {
+    return Math.max(0, cartTotal - totalPaid);
+  }, [cartTotal, totalPaid]);
+
+  const hasCashPayment = useMemo(() => {
+    return payments.some(p => p.method === 'cash');
+  }, [payments]);
+
+  const change = useMemo(() => {
+    return (totalPaid > cartTotal && hasCashPayment) ? (totalPaid - cartTotal) : 0;
+  }, [totalPaid, cartTotal, hasCashPayment]);
   
   const getNumericValue = (val: string) => parseFloat(val.replace(',', '.')) || 0;
 
@@ -1123,16 +1136,16 @@ export default function PDVPage() {
 
       {/* Right Side: Cart (40%) */}
       <div className="w-[340px] lg:w-[380px] h-full flex flex-col bg-card shadow-[-20px_0_40px_rgba(0,0,0,0.5)] relative z-10 border-l border-white/5">
-        <div className="p-6 border-b border-white/5">
+        <div className="p-4 border-b border-white/5">
           <div className="flex items-center justify-between">
-            <h3 className="font-black text-xl lg:text-2xl uppercase italic tracking-tighter">Carrinho</h3>
-            <div className="px-3 py-1 bg-primary text-white rounded-full font-black text-sm shadow-lg shadow-primary/20">
+            <h3 className="font-black text-lg lg:text-xl uppercase italic tracking-tighter">Carrinho</h3>
+            <div className="px-3 py-0.5 bg-primary text-white rounded-full font-black text-xs shadow-lg shadow-primary/20">
               {cart.reduce((s, i) => s + i.quantity, 0)}
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 scrollbar-visible custom-scrollbar">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10 text-center p-8">
               <div className="w-24 h-24 rounded-2xl bg-white/5 flex items-center justify-center mb-4 border border-white/5">
@@ -1142,48 +1155,51 @@ export default function PDVPage() {
             </div>
           ) : (
             cart.map((item, index) => (
-              <div key={index} className="flex gap-3 items-start group">
-                <div className="w-16 h-16 rounded-xl bg-white/5 flex-shrink-0 relative overflow-hidden border border-white/5">
-                   {item.image ? (
-                     <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                   ) : (
-                     <div className="absolute inset-0 flex items-center justify-center opacity-5">
-                       <ShoppingCart className="w-6 h-6" />
-                     </div>
-                   )}
-                </div>
-                <div className="flex-1 py-0.5">
-                  <h4 className="font-black text-sm uppercase leading-tight mb-1">{item.name}</h4>
-                  <div className="flex flex-wrap gap-1 mb-1">
-                    {item.addons?.map((a, i) => (
-                      <span key={i} className="text-[7px] font-black uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-md">
-                        + {a.name}
-                      </span>
-                    ))}
+              <React.Fragment key={index}>
+                <div className="flex gap-3 items-start group">
+                  <div className="w-16 h-16 rounded-xl bg-white/5 flex-shrink-0 relative overflow-hidden border border-white/5">
+                     {item.image ? (
+                       <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                     ) : (
+                       <div className="absolute inset-0 flex items-center justify-center opacity-5">
+                         <ShoppingCart className="w-6 h-6" />
+                       </div>
+                     )}
                   </div>
-                  <p className="text-primary font-black text-base tracking-tighter">
-                    {item.quantity}x R$ {(item.price + (item.addons?.reduce((s, a) => s + a.price, 0) || 0)).toFixed(2)}
-                  </p>
+                  <div className="flex-1 py-0.5">
+                    <h4 className="font-black text-sm uppercase leading-tight mb-1">{item.name}</h4>
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {item.addons?.map((a, i) => (
+                        <span key={i} className="text-[7px] font-black uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-md">
+                          + {a.name}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-primary font-black text-base tracking-tighter">
+                      {item.quantity}x R$ {(item.price + (item.addons?.reduce((s, a) => s + a.price, 0) || 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <motion.button 
+                      type="button"
+                      whileTap={{ scale: 0.8 }}
+                      onTap={() => editCartItem(index)}
+                      className="p-2 text-foreground/20 hover:text-primary transition-premium"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </motion.button>
+                    <motion.button 
+                      type="button"
+                      whileTap={{ scale: 0.8 }}
+                      onTap={() => removeFromCart(index)}
+                      className="p-2 text-foreground/20 hover:text-red-500 transition-premium"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </motion.button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <motion.button 
-                    type="button"
-                    whileTap={{ scale: 0.8 }}
-                    onTap={() => editCartItem(index)}
-                    className="p-2 text-foreground/20 hover:text-primary transition-premium"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </motion.button>
-                  <motion.button 
-                    type="button"
-                    whileTap={{ scale: 0.8 }}
-                    onTap={() => removeFromCart(index)}
-                    className="p-2 text-foreground/20 hover:text-red-500 transition-premium"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </motion.button>
-                </div>
-              </div>
+                {index < cart.length - 1 && <div className="border-b border-white/5 mx-1" />}
+              </React.Fragment>
             ))
           )}
         </div>
@@ -1318,13 +1334,13 @@ export default function PDVPage() {
         )}
 
         {isCheckoutOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 lg:p-4 bg-black/95 backdrop-blur-3xl">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 lg:p-4 bg-black/80 backdrop-blur-xl">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-card w-full max-w-6xl rounded-[2.5rem] overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.8)] border border-white/10 flex flex-col lg:flex-row h-[95dvh]"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.15 }}
+              className="bg-card w-full max-w-6xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col lg:flex-row h-[95dvh]"
             >
               {isSuccess ? (
                 <div className="w-full p-10 text-center flex flex-col items-center justify-center gap-4">
