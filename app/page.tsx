@@ -396,46 +396,25 @@ export default function PDVPage() {
         .catch(err => console.log('SW Error:', err));
     }
 
-    let syncChannel: any;
-
     const init = async () => {
       await loadCategories();
       await loadProducts();
       await loadAddons();
-
-      // Realtime Supabase Sync for Multi-Device
-      syncChannel = supabase.channel('schema-db-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async (payload) => {
-            if (payload.eventType === 'DELETE') {
-               await db.products.delete(payload.old.id);
-            } else {
-               const p = payload.new;
-               await db.products.put({ id: p.id, name: p.name, price: Number(p.price), category: p.category, available: p.available, image: p.image, addons: p.addon_ids || [], order: p.order });
-            }
-            await loadProducts();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, async (payload) => {
-            if (payload.eventType === 'DELETE') {
-               await db.categories.delete(payload.old.id);
-            } else {
-               const c = payload.new;
-               await db.categories.put({ id: c.id, name: c.name, order: Number(c.order), visible: c.visible });
-            }
-            await loadCategories();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'addons' }, async (payload) => {
-            if (payload.eventType === 'DELETE') {
-               await db.addons.delete(payload.old.id);
-            } else {
-               const a = payload.new;
-               await db.addons.put({ id: a.id, name: a.name, price: Number(a.price), visible: a.visible, product_ids: a.product_ids || [] });
-            }
-            await loadAddons();
-        })
-        .subscribe();
     };
 
     init();
+
+    // Periodic Sync (Every 3 minutes) instead of constant Realtime
+    // This saves CPU/Battery on tablet
+    const syncInterval = setInterval(async () => {
+      if (navigator.onLine) {
+        console.log('Periodic sync starting...');
+        await pullMenu();
+        await loadCategories();
+        await loadProducts();
+        await loadAddons();
+      }
+    }, 180000); // 3 minutes
 
     const handleVisibilityChange = () => {
       if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
@@ -447,9 +426,9 @@ export default function PDVPage() {
     return () => {
       if (wakeLockRef.current !== null) wakeLockRef.current.release();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (syncChannel) supabase.removeChannel(syncChannel);
+      clearInterval(syncInterval);
     };
-  }, []);
+  }, [pullMenu]);
 
 
   // Load Sales History (With pagination)
@@ -1237,12 +1216,12 @@ export default function PDVPage() {
       {/* Modals with AnimatePresence */}
       <AnimatePresence>
         {selectedProduct && (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.1 }}
               className="bg-card w-full max-w-5xl rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 flex flex-col lg:flex-row max-h-[90vh] py-2"
             >
               <div className="w-full lg:w-1/2 p-8 lg:p-10 border-r border-white/5 bg-white/5 overflow-y-auto">
@@ -1816,12 +1795,12 @@ export default function PDVPage() {
       {/* Admin Login/Settings Modal */}
       <AnimatePresence>
         {isAdminOpen && (
-          <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/95 backdrop-blur-3xl">
+          <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
             <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.15 }}
                 className="bg-card w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-7 flex flex-col gap-5"
               >
                 <div className="flex justify-between items-center border-b border-white/5 pb-4">
