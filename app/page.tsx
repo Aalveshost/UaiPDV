@@ -1240,16 +1240,7 @@ export default function PDVPage() {
               <h1 className="font-black text-2xl leading-tight tracking-tighter uppercase italic group-hover:text-primary transition-premium">SABOR JUNINO</h1>
             </div>
 
-            {debugTime !== null && (
-              <div className="fixed bottom-6 left-6 z-[999999] bg-primary text-white font-mono text-[12px] px-4 py-2 rounded-xl shadow-2xl border-2 border-white/20 backdrop-blur-xl flex flex-col gap-0.5">
-                <span className="text-[8px] font-black opacity-60 uppercase tracking-widest">Render Time</span>
-                <span className="font-black italic">{debugTime.toFixed(1)}ms</span>
-                <div className="mt-1 pt-1 border-t border-white/10">
-                   <span className="text-[8px] font-black opacity-60 uppercase tracking-widest">Last Close Delta</span>
-                   <span className="block font-black italic">{(Date.now() - lastModalCloseTime.current)}ms</span>
-                </div>
-              </div>
-            )}
+            {/* Debug UI Removed for Production */}
             
             <div className="h-8 w-[1px] bg-white/10" />
 
