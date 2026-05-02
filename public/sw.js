@@ -1,6 +1,6 @@
-const CACHE_NAME = 'uai-pdv-v2.5.6';
+const CACHE_NAME = 'uai-pdv-v4.1.1';
 
-// Estratégia: Cache First (Tenta o que está salvo, se não tiver, busca na rede e salva)
+// Estratégia: Network First (Tenta sempre a rede para ter o código mais novo, se falhar usa o cache)
 self.addEventListener('install', () => {
   self.skipWaiting();
 });
@@ -38,27 +38,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network First Strategy
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
+    fetch(event.request).then((networkResponse) => {
+      // Se a resposta for válida, salva no cache e entrega
+      if (networkResponse && networkResponse.status === 200) {
+        const responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
       }
-
-      return fetch(event.request).then((networkResponse) => {
-        // Se a resposta for válida, salva no cache para a próxima vez
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+      return networkResponse;
+    }).catch(() => {
+      // Se a rede falhar, tenta buscar no cache
+      return caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
         }
-        return networkResponse;
-      }).catch(() => {
-        // Se falhar a rede (Offline) e não tiver no cache, tenta entregar a página inicial
+        // Se falhar tudo (Rede OFF + Cache vazio), tenta página inicial
         if (event.request.mode === 'navigate') {
           return caches.match('/');
         }
-        return new Response('Network error', { status: 408, headers: { 'Content-Type': 'text/plain' } });
+        return new Response('Offline and no cache available', { status: 503 });
       });
     })
   );

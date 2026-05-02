@@ -41,8 +41,8 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Custom Numeric Keyboard (Numpad)
-function Numpad({ onInput, onDelete, onClear, onConfirm }: { onInput: (v: string) => void, onDelete: () => void, onClear: () => void, onConfirm?: () => void }) {
+// Custom Numeric Keyboard (Numpad) - Memoized for performance
+const Numpad = React.memo(({ onInput, onDelete, onClear, onConfirm }: { onInput: (v: string) => void, onDelete: () => void, onClear: () => void, onConfirm?: () => void }) => {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
   return (
     <div className="grid grid-cols-3 gap-2 w-full">
@@ -89,10 +89,10 @@ function Numpad({ onInput, onDelete, onClear, onConfirm }: { onInput: (v: string
       </motion.button>
     </div>
   );
-}
+});
 
-// Custom Virtual Keyboard (Alpha + Numeric)
-function VirtualKeyboard({ onInput, onDelete, onSpace }: { onInput: (v: string) => void, onDelete: () => void, onSpace: () => void }) {
+// Custom Virtual Keyboard (Alpha + Numeric) - Memoized for performance
+const VirtualKeyboard = React.memo(({ onInput, onDelete, onSpace }: { onInput: (v: string) => void, onDelete: () => void, onSpace: () => void }) => {
   const [mode, setMode] = useState<'alpha' | 'numeric'>('alpha');
   
   const rowsAlpha = [
@@ -158,7 +158,7 @@ function VirtualKeyboard({ onInput, onDelete, onSpace }: { onInput: (v: string) 
       </div>
     </div>
   );
-}
+});
 
 // Helper para converter imagem para WebP e cortar 700x700
 const processImageToWebP = (file: File): Promise<Blob> => {
@@ -221,6 +221,15 @@ const ProductCard = React.memo(({ product, onClick }: { product: Product, onClic
 
 ProductCard.displayName = 'ProductCard';
 
+// Debug Helper Component
+const DebugTimer = ({ startTime, onMeasure }: { startTime: number, onMeasure: (ms: number) => void }) => {
+  useEffect(() => {
+    const end = performance.now();
+    onMeasure(end - startTime);
+  }, [startTime, onMeasure]);
+  return null;
+};
+
 export default function PDVPage() {
   // UI State
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -234,6 +243,8 @@ export default function PDVPage() {
   const [adminPass, setAdminPass] = useState('');
   const [isAdminVerified, setIsAdminVerified] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [debugTime, setDebugTime] = useState<number | null>(null);
+  const [clickStart, setClickStart] = useState<number>(0);
   const [isNaming, setIsNaming] = useState(false);
   const [activeInput, setActiveInput] = useState<'name' | 'value' | 'admin'>('value');
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -243,6 +254,18 @@ export default function PDVPage() {
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [isAddonFormOpen, setIsAddonFormOpen] = useState(false);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
+  const [isMonitorOpen, setIsMonitorOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printPreviewContent, setPrintPreviewContent] = useState('');
+  const [isEditingSale, setIsEditingSale] = useState(false);
+  const [editingSaleData, setEditingSaleData] = useState<Sale | null>(null);
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const lastModalCloseTime = useRef<number>(0);
+  
+  const blockGhostClick = () => {
+    lastModalCloseTime.current = Date.now();
+  };
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productFormName, setProductFormName] = useState('');
@@ -279,9 +302,65 @@ export default function PDVPage() {
   const [payments, setPayments] = useState<{ method: 'cash' | 'credit' | 'debit' | 'pix', amount: number }[]>([]);
   const [cashierNumber] = useState(3);
   
-  const { isOnline, pendingCount, lastSyncTime, pullRecentSales, pullMenu } = useOfflineSync();
+  // Safe Initialization
+  useEffect(() => {
+    const checkDB = async () => {
+      try {
+        await db.open();
+        console.log('Database ready');
+      } catch (err) {
+        console.error('Database failed to open, retrying...', err);
+        // If DB is blocked or corrupted, a reload often helps
+        if (err instanceof Error && (err.name === 'QuotaExceededError' || err.name === 'OpenFailedError')) {
+          console.warn('DB error, attempting recovery...');
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      }
+    };
+    checkDB();
+  }, []);
 
-  // Memoized lists to prevent re-filtering on every render
+  const { isOnline, syncing, pendingCount, lastSyncTime, pullRecentSales, pullMenu } = useOfflineSync();
+
+  // Presence Monitoring
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const channel = supabase.channel('online_users', {
+      config: { presence: { key: `user_${Math.random().toString(36).substr(2, 9)}` } }
+    });
+
+    const syncPresence = async () => {
+      let geoInfo = { ip: 'Local/VPN', city: '-', country: '-' };
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (res.ok) {
+          const data = await res.json();
+          geoInfo.ip = data.ip;
+        }
+      } catch (err) { /* Silencioso */ }
+
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          const users = Object.values(state).flat();
+          setOnlineUsers(users);
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              online_at: new Date().toISOString(),
+              geo: geoInfo,
+              cashier: cashierNumber,
+              isLocal: window.location.hostname === 'localhost'
+            });
+          }
+        });
+    };
+
+    syncPresence();
+    return () => { channel.unsubscribe(); };
+  }, [isOnline, cashierNumber]);
   const filteredProducts = useMemo(() => {
     return products
       .filter(p => p.available)
@@ -291,14 +370,7 @@ export default function PDVPage() {
   const addonsForSelectedProduct = useMemo(() => {
     if (!selectedProduct) return [];
     return addons
-      .filter(a => {
-        if (!a.visible) return false;
-        // Show if explicitly linked to product (from either side)
-        const linkedFromAddon = a.product_ids?.includes(selectedProduct.id);
-        const linkedFromProduct = selectedProduct.addons?.includes(a.id);
-        
-        return linkedFromAddon || linkedFromProduct;
-      })
+      .filter(a => a.visible && a.product_ids?.includes(selectedProduct.id!))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [addons, selectedProduct]);
 
@@ -544,6 +616,19 @@ export default function PDVPage() {
     }
   };
 
+  const deleteCategory = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir esta categoria? Os produtos vinculados a ela não serão excluídos, mas ficarão sem categoria.')) return;
+    try {
+      await db.categories.delete(id);
+      await loadCategories();
+      if (isOnline) {
+        supabase.from('categories').delete().eq('id', id).then();
+      }
+    } catch (err) {
+      console.error('Erro ao excluir categoria:', err);
+    }
+  };
+
   const moveProduct = async (id: number, direction: 'up' | 'down') => {
     const sortedProducts = [...products].sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.name.localeCompare(b.name));
     const currentIndex = sortedProducts.findIndex(p => p.id === id);
@@ -687,7 +772,15 @@ export default function PDVPage() {
 
     if (isOnline) {
       const prod = await db.products.get(id);
-      if (prod) supabase.from('products').upsert({ id: prod.id, name: prod.name, price: prod.price, category: prod.category, available: prod.available, image: prod.image, addon_ids: prod.addons || [], order: prod.order }).then(({error}) => { if (error) console.error('Supabase Error:', error) });
+      if (prod) supabase.from('products').upsert({ 
+        id: prod.id, 
+        name: prod.name, 
+        price: prod.price, 
+        category: prod.category, 
+        available: prod.available, 
+        image: prod.image, 
+        order: prod.order 
+      }).then(({error}) => { if (error) console.error('Supabase Error:', error) });
     }
   };
 
@@ -710,13 +803,17 @@ export default function PDVPage() {
 
       if (isOnline) {
         const addon = await db.addons.get(addonId);
-        if (addon) supabase.from('addons').upsert({ 
-          id: addon.id, 
-          name: addon.name, 
-          price: addon.price, 
-          visible: addon.visible,
-          product_ids: addon.product_ids || []
-        }).then();
+        if (addon) {
+          const { error } = await supabase.from('addons').upsert({ 
+            id: addon.id, 
+            name: addon.name, 
+            price: addon.price, 
+            visible: addon.visible,
+            product_ids: addon.product_ids || []
+          });
+          if (error) console.error('Erro ao sincronizar adicional no Supabase:', error);
+          else console.log('Adicional sincronizado com sucesso!');
+        }
       }
     } catch (err) {
       console.error('Erro ao salvar adicional:', err);
@@ -789,16 +886,33 @@ export default function PDVPage() {
   };
 
   const finalizeSale = async () => {
-    const displayId = await generateDisplayId();
-    
-    const uuid = generateUUID();
+    let displayIdToUse: string;
+    let uuidToUse: string;
+
+    if (editingSaleId) {
+      const existing = await db.sales.get(editingSaleId);
+      displayIdToUse = existing?.displayId || await generateDisplayId(cashierNumber);
+      uuidToUse = existing?.uuid || generateUUID();
+    } else {
+      displayIdToUse = await generateDisplayId(cashierNumber);
+      uuidToUse = generateUUID();
+    }
+
+    // Clean items: remove images to save DB space
+    const cleanedItems = cart.map(item => ({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      addons: item.addons || []
+    }));
 
     const sale: Sale = {
-      uuid,
-      displayId,
+      uuid: uuidToUse,
+      displayId: displayIdToUse,
       date: new Date(),
       customerName: customerName || 'Cliente',
-      items: cart,
+      items: cleanedItems,
       paymentMethod: payments.length > 1 ? 'multi' : (payments[0]?.method || 'cash'),
       total: cartTotal,
       payments: payments,
@@ -808,20 +922,14 @@ export default function PDVPage() {
     };
 
     try {
-      await db.sales.add(sale);
+      if (editingSaleId) {
+        await db.sales.update(editingSaleId, sale);
+      } else {
+        await db.sales.add(sale);
+      }
       setLastFinishedSale(sale); // Store to print on success screen
       setIsSuccess(true);
-      setTimeout(() => {
-        setIsSuccess(false);
-        setIsCheckoutOpen(false);
-        setCart([]);
-        setPayments([]);
-        setCustomerName('');
-        setCashReceived('');
-        setIsNaming(false);
-        setSelectedCategory(null);
-        setActiveInput('value');
-      }, 1500); // Increased back to 1.5s to allow time to see/click print
+      // Removido setTimeout automático para ser persistente conforme pedido
     } catch (err) {
       console.error('Failed to save sale:', err);
     }
@@ -831,36 +939,63 @@ export default function PDVPage() {
 
   const handlePrint = (sale: Sale) => {
     try {
+      const ESC = '\u001b';
+      const GS = '\u001d';
       const lines = [];
-      lines.push('       PASTELARIA MAKTUB       ');
+      
+      // Cabeçalho Grande (Double Height + Double Width)
+      lines.push(ESC + '!' + '\u0030' + '  SABOR JUNINO  ' + ESC + '!' + '\u0000');
       lines.push('-------------------------------');
-      lines.push(`PEDIDO: ${sale.displayId}`);
+      
+      // Pedido Grande
+      lines.push(ESC + '!' + '\u0010' + `PEDIDO: ${sale.displayId}` + ESC + '!' + '\u0000');
+      
       lines.push(`CLIENTE: ${sale.customerName.toUpperCase()}`);
       lines.push(`DATA: ${new Date(sale.date).toLocaleString('pt-BR')}`);
       lines.push('-------------------------------');
-      lines.push('ITEM         QTD      VALOR    ');
-      
+      const D_HEIGHT = ESC + '!' + '\u0010';
+      const NORMAL = ESC + '!' + '\u0000';
+
       sale.items.forEach(item => {
-        const name = item.name.substring(0, 12).padEnd(12);
-        const qty = ('x' + item.quantity).padEnd(8);
-        const price = ('R$' + item.price.toFixed(2)).padStart(9);
-        lines.push(`${name} ${qty} ${price}`);
+        // Linha 1: Qtd e Nome (Altura Dupla)
+        lines.push(D_HEIGHT + `${item.quantity}x - ${item.name.toUpperCase()}` + NORMAL);
+        
+        // Linha 2: Adicionais (se houver)
         if (item.addons && item.addons.length > 0) {
-          lines.push(` + ${item.addons.map(a => a.name).join(', ')}`.substring(0, 31));
+          lines.push(D_HEIGHT + `   + ${item.addons.map(a => a.name).join(', ').toUpperCase()}` + NORMAL);
         }
+        
+        // Linha 3: Valor do bloco
+        const itemTotal = (item.price + (item.addons?.reduce((sum, a) => sum + a.price, 0) || 0)) * item.quantity;
+        lines.push(D_HEIGHT + `VALOR: R$ ${itemTotal.toFixed(2)}` + NORMAL);
+        
+        // Linha Divisória
+        lines.push('-------------------------------');
       });
 
       lines.push('-------------------------------');
-      lines.push(`TOTAL:           R$ ${sale.total.toFixed(2).padStart(10)}`);
+      
+      // Total Grande
+      lines.push(ESC + '!' + '\u0010' + `TOTAL: R$ ${sale.total.toFixed(2)}` + ESC + '!' + '\u0000');
       
       if (sale.paymentMethod === 'multi') {
         sale.payments?.forEach(p => {
-          const m = (p.method === 'cash' ? 'DINHEIRO' : p.method === 'pix' ? 'PIX' : 'CARTAO').padEnd(15);
-          lines.push(`${m} R$ ${p.amount.toFixed(2).padStart(10)}`);
+          const m = (
+            p.method === 'cash' ? 'DINHEIRO' : 
+            p.method === 'pix' ? 'PIX' : 
+            p.method === 'credit' ? 'CREDITO' : 
+            p.method === 'debit' ? 'DEBITO' : 'CARTAO'
+          ).padEnd(15);
+          lines.push(D_HEIGHT + `${m} R$ ${p.amount.toFixed(2).padStart(10)}` + NORMAL);
         });
       } else {
-        const m = (sale.paymentMethod === 'cash' ? 'DINHEIRO' : sale.paymentMethod === 'pix' ? 'PIX' : 'CARTAO').padEnd(15);
-        lines.push(`${m} R$ ${sale.total.toFixed(2).padStart(10)}`);
+        const m = (
+          sale.paymentMethod === 'cash' ? 'DINHEIRO' : 
+          sale.paymentMethod === 'pix' ? 'PIX' : 
+          sale.paymentMethod === 'credit' ? 'CREDITO' : 
+          sale.paymentMethod === 'debit' ? 'DEBITO' : 'CARTAO'
+        ).padEnd(15);
+        lines.push(D_HEIGHT + `${m} R$ ${sale.total.toFixed(2).padStart(10)}` + NORMAL);
       }
 
       if (sale.change && sale.change > 0) {
@@ -872,11 +1007,48 @@ export default function PDVPage() {
       lines.push('\n\n\n\n'); 
 
       const text = lines.join('\n');
+      setPrintPreviewContent(text);
+      setIsPrintPreviewOpen(true);
+    } catch (err) {
+      console.error('Preview failed:', err);
+    }
+  };
+
+  const executeRealPrint = (text: string) => {
+    try {
       const base64 = btoa(unescape(encodeURIComponent(text)));
       window.location.href = `rawbt:base64,${base64}`;
+      setIsPrintPreviewOpen(false);
     } catch (err) {
       console.error('Print failed:', err);
       alert('Erro ao enviar para impressora. Verifique o RawBT.');
+    }
+  };
+
+  const saveEditedSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSaleData) return;
+
+    try {
+      await db.sales.update(editingSaleData.id, {
+        customerName: editingSaleData.customerName,
+        paymentMethod: editingSaleData.paymentMethod,
+        synced: 0 // Force re-sync
+      });
+
+      setSales(prev => prev.map(s => s.id === editingSaleData.id ? { 
+        ...s, 
+        customerName: editingSaleData.customerName, 
+        paymentMethod: editingSaleData.paymentMethod,
+        synced: 0
+      } : s));
+
+      setIsEditingSale(false);
+      setEditingSaleData(null);
+      alert('Venda atualizada com sucesso!');
+    } catch (err) {
+      console.error('Error updating sale:', err);
+      alert('Erro ao atualizar venda');
     }
   };
 
@@ -920,7 +1092,7 @@ export default function PDVPage() {
     const ads = await db.addons.toArray();
     
     const config = {
-      version: 'v2.9.6',
+      version: 'v4.2.0',
       categories: cats,
       products: prods,
       addons: ads,
@@ -1026,6 +1198,14 @@ export default function PDVPage() {
   };
 
   const openProductOptions = (product: Product) => {
+    const delta = Date.now() - lastModalCloseTime.current;
+    // Escudo contra cliques fantasmas (aumentado para 800ms devido ao lag do tablet)
+    if (delta < 800) {
+      console.log(`Ghost click blocked: ${delta}ms`);
+      return;
+    }
+    
+    setClickStart(performance.now());
     setSelectedProduct(product);
     setTempQuantity(1);
     setTempAddons([]);
@@ -1050,11 +1230,26 @@ export default function PDVPage() {
         <header className="px-6 py-4 border-b border-border glass flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-4 group">
-              <div className="w-12 h-12 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(255,107,0,0.2)] transition-premium">
+              <motion.div 
+                whileTap={{ scale: 0.9 }}
+                onTap={() => setIsMonitorOpen(true)}
+                className="w-12 h-12 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(255,107,0,0.2)] transition-premium cursor-pointer"
+              >
                 <img src="/logo.png" alt="Sabor Junino" className="w-full h-full object-cover" />
-              </div>
+              </motion.div>
               <h1 className="font-black text-2xl leading-tight tracking-tighter uppercase italic group-hover:text-primary transition-premium">SABOR JUNINO</h1>
             </div>
+
+            {debugTime !== null && (
+              <div className="fixed bottom-6 left-6 z-[999999] bg-primary text-white font-mono text-[12px] px-4 py-2 rounded-xl shadow-2xl border-2 border-white/20 backdrop-blur-xl flex flex-col gap-0.5">
+                <span className="text-[8px] font-black opacity-60 uppercase tracking-widest">Render Time</span>
+                <span className="font-black italic">{debugTime.toFixed(1)}ms</span>
+                <div className="mt-1 pt-1 border-t border-white/10">
+                   <span className="text-[8px] font-black opacity-60 uppercase tracking-widest">Last Close Delta</span>
+                   <span className="block font-black italic">{(Date.now() - lastModalCloseTime.current)}ms</span>
+                </div>
+              </div>
+            )}
             
             <div className="h-8 w-[1px] bg-white/10" />
 
@@ -1067,7 +1262,22 @@ export default function PDVPage() {
 
               
               {isOnline ? (
-                <div className="flex items-center gap-4 bg-green-500/10 px-4 py-1.5 rounded-full text-green-500 border border-green-500/20">
+                <motion.button 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={async () => {
+                    if (syncing) return;
+                    const ok = await pullMenu();
+                    if (ok) {
+                      await loadCategories();
+                      await loadProducts();
+                      await loadAddons();
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center gap-4 bg-green-500/10 px-4 py-1.5 rounded-full text-green-500 border border-green-500/20",
+                    syncing && "opacity-50 cursor-wait"
+                  )}
+                >
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                     <span className="font-black">ONLINE</span>
@@ -1086,7 +1296,7 @@ export default function PDVPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </motion.button>
               ) : (
                 <div className="flex items-center gap-2 bg-red-500/10 px-4 py-1.5 rounded-full text-red-500 border border-red-500/20">
                   <div className="w-2 h-2 bg-red-500 rounded-full" />
@@ -1146,7 +1356,7 @@ export default function PDVPage() {
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-visible custom-scrollbar">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center opacity-10 text-center p-8">
+            <div className="h-full flex flex-col items-center justify-center opacity-40 text-center p-8">
               <div className="w-24 h-24 rounded-2xl bg-white/5 flex items-center justify-center mb-4 border border-white/5">
                 <ShoppingCart className="w-12 h-12" />
               </div>
@@ -1221,7 +1431,7 @@ export default function PDVPage() {
           <motion.button 
             type="button"
             whileTap={{ scale: 0.98 }}
-            onClick={() => setIsCheckoutOpen(true)}
+            onClick={() => { setClickStart(performance.now()); setIsCheckoutOpen(true); }}
             disabled={cart.length === 0}
             className="w-full bg-primary hover:bg-primary/80 disabled:bg-white/5 disabled:text-white/20 disabled:cursor-not-allowed text-white py-3 rounded-lg font-black text-sm tracking-tight shadow-md transition-premium flex items-center justify-center gap-2 group uppercase italic"
           >
@@ -1231,160 +1441,141 @@ export default function PDVPage() {
         </div>
       </div>
 
-      {/* Modals - Permanent containers for speed */}
-      <div className={cn(
+      <div 
+        style={{ contain: 'content' }}
+        className={cn(
         "fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-200",
         selectedProduct ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
       )}>
-        {selectedProduct && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-card w-full max-w-5xl rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 flex flex-col lg:flex-row max-h-[90vh] py-2"
-          >
-              <div className="w-full lg:w-1/2 p-8 lg:p-10 border-r border-white/5 bg-white/5 overflow-y-auto">
-                <motion.button 
-                  type="button"
-                  whileTap={{ scale: 0.9 }}
-                  onTap={() => { setSelectedProduct(null); setCartIndexEditing(null); setTempAddons([]); setTempQuantity(1); }}
-                  className="flex items-center gap-2 text-primary font-black uppercase text-[9px] mb-8 hover:gap-4 transition-premium px-4 py-2 bg-primary/10 rounded-full w-fit"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Voltar
-                </motion.button>
-                
-                <div className="aspect-video bg-white/5 rounded-2xl mb-6 flex items-center justify-center overflow-hidden border border-white/10 shadow-inner group">
-                  {selectedProduct.image ? (
-                    <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-contain p-2 rounded-2xl drop-shadow-2xl transition-premium group-hover:scale-105" />
-                  ) : (
-                    <ShoppingCart className="w-14 h-14 text-white/10" />
-                  )}
-                </div>
-                
-                <h2 className="text-xl lg:text-3xl font-black uppercase tracking-tighter mb-2 leading-none">{selectedProduct.name}</h2>
-                <p className="text-primary font-black text-lg lg:text-2xl tracking-tighter mb-6">R$ {selectedProduct.price.toFixed(2)}</p>
-                
-                <div className="flex items-center bg-background rounded-xl border-2 border-white/5 p-1 shadow-xl inline-flex">
-                  <motion.button 
-                    type="button"
-                    whileTap={{ scale: 0.8 }}
-                    onTap={() => setTempQuantity(q => Math.max(1, q - 1))}
-                    className="w-10 h-10 rounded-lg hover:bg-white/5 flex items-center justify-center transition-premium text-primary"
-                  >
-                    <Minus className="w-5 h-5" />
-                  </motion.button>
-                  <span className="w-10 text-center text-xl font-black">{tempQuantity}</span>
-                  <motion.button 
-                    type="button"
-                    whileTap={{ scale: 0.8 }}
-                    onTap={() => setTempQuantity(q => q + 1)}
-                    className="w-10 h-10 rounded-lg hover:bg-white/5 flex items-center justify-center transition-premium text-primary"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </motion.button>
-                </div>
-              </div>
+        <motion.div 
+          onClick={(e) => e.stopPropagation()}
+          initial={false}
+          animate={selectedProduct ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.98, y: 10 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="bg-card w-full max-w-5xl rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 flex flex-col lg:flex-row max-h-[90vh] py-2"
+        >
+          {/* Debug Timer remains conditional to only measure new clicks */}
+          {selectedProduct && <DebugTimer startTime={clickStart} onMeasure={setDebugTime} />}
+          
+          <div className="w-full lg:w-1/2 p-8 lg:p-10 border-r border-white/5 bg-white/5 overflow-y-auto">
+            <motion.button 
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation();
+                blockGhostClick();
+                setSelectedProduct(null); 
+                setCartIndexEditing(null); 
+                setTempAddons([]); 
+                setTempQuantity(1); 
+              }}
+              className="flex items-center gap-2 text-primary font-black uppercase text-[9px] mb-8 hover:gap-4 transition-premium px-4 py-2 bg-primary/10 rounded-full w-fit"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Voltar
+            </motion.button>
+            
+            <div className="aspect-video bg-white/5 rounded-2xl mb-6 flex items-center justify-center overflow-hidden border border-white/10 shadow-inner group">
+              {selectedProduct?.image ? (
+                <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-contain p-2 rounded-2xl drop-shadow-2xl transition-premium group-hover:scale-105" />
+              ) : (
+                <ShoppingCart className="w-14 h-14 text-white/10" />
+              )}
+            </div>
+            
+            <h2 className="text-xl lg:text-3xl font-black uppercase tracking-tighter mb-2 leading-none">{selectedProduct?.name || '---'}</h2>
+            <p className="text-primary font-black text-lg lg:text-2xl tracking-tighter mb-6">R$ {selectedProduct?.price.toFixed(2) || '0.00'}</p>
+            
+            <div className="flex items-center bg-background rounded-xl border-2 border-white/5 p-1 shadow-xl inline-flex">
+              <motion.button 
+                type="button"
+                whileTap={{ scale: 0.8 }}
+                onTap={() => setTempQuantity(q => Math.max(1, q - 1))}
+                className="w-10 h-10 rounded-lg hover:bg-white/5 flex items-center justify-center transition-premium text-primary"
+              >
+                <Minus className="w-5 h-5" />
+              </motion.button>
+              <span className="w-10 text-center text-xl font-black">{tempQuantity}</span>
+              <motion.button 
+                type="button"
+                whileTap={{ scale: 0.8 }}
+                onTap={() => setTempQuantity(q => q + 1)}
+                className="w-10 h-10 rounded-lg hover:bg-white/5 flex items-center justify-center transition-premium text-primary"
+              >
+                <Plus className="w-5 h-5" />
+              </motion.button>
+            </div>
+          </div>
 
-              <div className="flex-1 flex flex-col p-8 lg:p-10 overflow-hidden">
-                <h3 className="text-xl font-black uppercase tracking-tighter mb-5 italic">Adicionais</h3>
-                <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 custom-scrollbar">
-                  {addonsForSelectedProduct.map((addon) => {
-                    const isSelected = tempAddons.find(a => a.id === addon.id);
-                    
-                    return (
-                      <motion.button
-                        key={addon.id}
-                        type="button"
-                        whileTap={{ scale: 0.98 }}
-                        onTap={() => toggleAddon(addon)}
-                        className={cn(
-                          "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-premium group cursor-pointer",
-                          isSelected 
-                            ? "border-primary bg-primary/20 shadow-lg" 
-                            : "border-white/5 hover:border-white/20 bg-white/5"
-                        )}
-                      >
-                        <div className="text-left pointer-events-none">
-                          <p className="font-black uppercase tracking-wide text-xs">{addon.name}</p>
-                          <p className={cn("font-bold text-[10px]", isSelected ? "text-primary" : "opacity-40")}>+ R$ {addon.price.toFixed(2)}</p>
-                        </div>
-                        <div className={cn(
-                          "w-7 h-7 rounded-lg flex items-center justify-center transition-premium pointer-events-none",
-                          isSelected ? "bg-primary text-white scale-110 shadow-lg" : "bg-white/5 text-transparent"
-                        )}>
-                          {isSelected ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
+          <div className="flex-1 flex flex-col p-8 lg:p-10 overflow-hidden">
+            <h3 className="text-xl font-black uppercase tracking-tighter mb-5 italic">Adicionais</h3>
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 custom-scrollbar">
+              {addonsForSelectedProduct.map((addon) => {
+                const isSelected = tempAddons.find(a => a.id === addon.id);
+                
+                return (
+                  <motion.button
+                    key={addon.id}
+                    type="button"
+                    whileTap={{ scale: 0.98 }}
+                    onTap={() => toggleAddon(addon)}
+                    className={cn(
+                      "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-premium group cursor-pointer",
+                      isSelected 
+                        ? "border-primary bg-primary/20 shadow-lg" 
+                        : "border-white/5 hover:border-white/20 bg-white/5"
+                    )}
+                  >
+                    <div className="text-left pointer-events-none">
+                      <p className="font-black uppercase tracking-wide text-xs">{addon.name}</p>
+                      <p className={cn("font-bold text-[10px]", isSelected ? "text-primary" : "opacity-40")}>+ R$ {addon.price.toFixed(2)}</p>
+                    </div>
+                    <div className={cn(
+                      "w-7 h-7 rounded-lg flex items-center justify-center transition-premium pointer-events-none",
+                      isSelected ? "bg-primary text-white scale-110 shadow-lg" : "bg-white/5 text-transparent"
+                    )}>
+                      {isSelected ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
 
-                <motion.button 
-                  type="button"
-                  whileTap={{ scale: 0.98 }}
-                  onTap={addItemToCart}
-                  className="mt-6 w-full bg-primary text-white py-4 rounded-xl font-black text-base lg:text-lg uppercase tracking-tight shadow-xl shadow-primary/30 transition-premium"
-                >
-                  Confirmar • R$ {((selectedProduct.price + tempAddons.reduce((s, a) => s + a.price, 0)) * tempQuantity).toFixed(2)}
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
+            <motion.button 
+              type="button"
+              whileTap={{ scale: 0.98 }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                blockGhostClick();
+                addItemToCart();
+              }}
+              className="mt-6 w-full bg-primary text-white py-4 rounded-xl font-black text-base lg:text-lg uppercase tracking-tight shadow-xl shadow-primary/30 transition-premium"
+            >
+              Confirmar • R$ {((selectedProduct?.price || 0 + tempAddons.reduce((s, a) => s + a.price, 0)) * tempQuantity).toFixed(2)}
+            </motion.button>
+          </div>
+        </motion.div>
       </div>
 
-      <div className={cn(
+      {/* Checkout Modal Layer */}
+      <div 
+        style={{ contain: 'content' }}
+        className={cn(
         "fixed inset-0 z-[1000] flex items-center justify-center p-2 lg:p-4 bg-black/80 backdrop-blur-xl transition-all duration-200",
-        isCheckoutOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+        isCheckoutOpen && !isSuccess ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
       )}>
-        {isCheckoutOpen && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-card w-full max-w-6xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col lg:flex-row h-[95dvh]"
-          >
-              {isSuccess ? (
-                <div className="w-full p-10 text-center flex flex-col items-center justify-center gap-4">
-                  <motion.div 
-                    initial={{ scale: 0, rotate: -45 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: "spring", damping: 12, stiffness: 200 }}
-                    className="w-24 h-24 rounded-full bg-green-500/10 flex items-center justify-center"
-                  >
-                    <CheckCircle2 className="w-12 h-12 text-green-500" />
-                  </motion.div>
-                  <motion.h2 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="text-3xl lg:text-4xl font-black uppercase tracking-tighter italic"
-                  >
-                    Pedido Concluído!
-                  </motion.h2>
-                  <motion.p 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 0.4 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-white uppercase tracking-widest text-xs font-bold"
-                  >
-                    Obrigado pela preferência
-                  </motion.p>
-                  
-                  {lastFinishedSale && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
-                      onClick={() => handlePrint(lastFinishedSale)}
-                      className="mt-4 flex items-center gap-3 bg-primary px-8 py-4 rounded-2xl text-white font-black uppercase italic tracking-tighter shadow-[0_10px_30px_rgba(255,107,0,0.3)] hover:scale-105 active:scale-95 transition-all"
-                    >
-                      <Printer className="w-5 h-5" />
-                      Imprimir Cupom
-                    </motion.button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Left: Info & Methods */}
+        <motion.div 
+          initial={false}
+          animate={isCheckoutOpen && !isSuccess ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.98 }}
+          transition={{ type: "spring", damping: 30, stiffness: 300 }}
+          className="bg-card w-full max-w-6xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col lg:flex-row h-[95dvh]"
+        >
+          {/* Checkout Content */}
+          <>
+            {isCheckoutOpen && !isSuccess && <DebugTimer startTime={clickStart} onMeasure={setDebugTime} />}
+            {/* Left: Info & Methods */}
                   <div className="flex-1 p-6 lg:p-7 flex flex-col gap-4 border-r border-white/5 overflow-hidden">
                     <div className="flex justify-between items-center">
                       <div>
@@ -1393,7 +1584,12 @@ export default function PDVPage() {
                       </div>
                       <motion.button 
                         whileTap={{ scale: 0.8 }}
-                        onClick={() => setIsCheckoutOpen(false)} 
+                        onClick={(e) => { 
+                          e.preventDefault();
+                          e.stopPropagation(); 
+                          blockGhostClick();
+                          setIsCheckoutOpen(false); 
+                        }} 
                         className="flex items-center gap-2 text-primary font-black uppercase text-[8px] px-4 py-2 bg-primary/10 rounded-full"
                       >
                         <ChevronLeft className="w-3 h-3" />
@@ -1405,20 +1601,24 @@ export default function PDVPage() {
                     <div className="grid grid-cols-2 gap-2.5">
                       {[
                         { id: 'cash', label: 'DINHEIRO', icon: Banknote, color: 'text-green-500' },
-                        { id: 'pix', label: 'PIX', icon: QrCode, color: 'text-cyan-500' },
                         { id: 'credit', label: 'CRÉDITO', icon: CreditCard, color: 'text-fuchsia-500' },
                         { id: 'debit', label: 'DÉBITO', icon: CreditCard, color: 'text-amber-500' },
+                        { id: 'pix', label: 'PIX', icon: QrCode, color: 'text-cyan-500' },
                       ].map(method => (
                         <motion.button
                           key={method.id}
                           type="button"
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => { setPaymentMethod(method.id as 'cash' | 'credit' | 'debit' | 'pix'); setActiveInput('value'); }}
+                          onClick={(e) => { 
+                            e.stopPropagation();
+                            setPaymentMethod(method.id as 'cash' | 'credit' | 'debit' | 'pix'); 
+                            setActiveInput('value'); 
+                          }}
                           className={cn(
-                            "flex items-center gap-3 p-4 rounded-xl border-2 transition-premium group",
+                            "flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-75 group",
                             paymentMethod === method.id 
-                              ? "border-primary bg-primary/20 shadow-md" 
-                              : "border-white/5 bg-white/5"
+                              ? "border-primary bg-primary/20 shadow-md scale-[1.02]" 
+                              : "border-white/5 bg-white/5 opacity-60"
                           )}
                         >
                           <div className={cn(
@@ -1611,12 +1811,71 @@ export default function PDVPage() {
                       </AnimatePresence>
                     </div>
                   </div>
-                </>
-            )}
-          </motion.div>
-        )}
+          </>
+        </motion.div>
       </div>
 
+      {/* Success Screen Layer - Dedicated Persistent View */}
+      <div className={cn(
+        "fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-green-500 transition-all duration-500",
+        isSuccess ? "opacity-100 visible scale-100" : "opacity-0 invisible pointer-events-none scale-110"
+      )}>
+        <div className="w-full p-10 text-center flex flex-col items-center justify-center gap-4 text-white">
+          <motion.div 
+            animate={isSuccess ? { scale: 1, rotate: 0 } : { scale: 0, rotate: -45 }}
+            className="w-32 h-32 rounded-full bg-white/20 flex items-center justify-center mb-4"
+          >
+            <CheckCircle2 className="w-16 h-16 text-white" />
+          </motion.div>
+          <motion.h2 
+            animate={isSuccess ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+            className="text-4xl lg:text-6xl font-black uppercase tracking-tighter italic"
+          >
+            Venda Concluída!
+          </motion.h2>
+          <p className="text-white uppercase tracking-widest text-sm font-bold opacity-50">O pedido foi registrado com sucesso</p>
+          
+          {lastFinishedSale && (
+            <motion.div 
+              animate={isSuccess ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+              transition={{ delay: 0.3 }}
+              className="flex flex-col items-center gap-4 mt-8"
+            >
+              <button
+                onClick={() => handlePrint(lastFinishedSale)}
+                className="flex items-center gap-4 bg-white text-green-600 px-12 py-6 rounded-3xl font-black uppercase italic tracking-tighter shadow-2xl hover:scale-105 active:scale-95 transition-all text-xl"
+              >
+                <Printer className="w-7 h-7" />
+                Imprimir Cupom
+              </button>
+              
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  blockGhostClick();
+                  setIsSuccess(false);
+                  setIsCheckoutOpen(false);
+                  setCart([]);
+                  setPayments([]);
+                  setCustomerName('');
+                  setCashReceived('');
+                  setEditingSaleId(null);
+                  setIsNaming(false);
+                  setSelectedCategory(null);
+                  setActiveInput('value');
+                  setLastFinishedSale(null);
+                }}
+                className="mt-8 flex items-center gap-3 bg-black/20 text-white px-10 py-5 rounded-2xl font-black uppercase italic tracking-tighter hover:bg-black/40 transition-all"
+              >
+                <Plus className="w-5 h-5" />
+                Próxima Venda
+              </button>
+            </motion.div>
+          )}
+        </div>
+      </div>
+      
       {/* History Modal */}
       <AnimatePresence>
         {isHistoryOpen && (
@@ -1640,7 +1899,7 @@ export default function PDVPage() {
                 </div>
                 <motion.button 
                   whileTap={{ scale: 0.8 }}
-                  onTap={() => setIsHistoryOpen(false)} 
+                  onTap={() => { blockGhostClick(); setIsHistoryOpen(false); }} 
                   className="flex items-center gap-2 text-primary font-black uppercase text-xs hover:gap-4 transition-premium px-6 py-3 bg-primary/10 rounded-full"
                 >
                   <ChevronLeft className="w-5 h-5" />
@@ -1696,15 +1955,28 @@ export default function PDVPage() {
                         <div className="text-right">
                           <p className="text-3xl font-black text-primary tracking-tighter italic">R$ {sale.total.toFixed(2)}</p>
                           <div className="flex items-center justify-end gap-2 mt-1.5">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePrint(sale);
-                              }}
-                              className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-primary transition-all border border-white/5"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
+
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSaleData(sale);
+                                  setIsEditingSale(true);
+                                }}
+                                className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-primary transition-all border border-white/5"
+                              >
+                                <Pencil className="w-4 h-4 text-primary" />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrint(sale);
+                                }}
+                                className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-primary transition-all border border-white/5"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </button>
+                            </div>
                             {sale.synced ? (
                               <span className="text-[9px] font-black uppercase text-green-400 bg-green-500/10 px-2.5 py-1 rounded-md border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]">Sincronizado</span>
                             ) : (
@@ -1739,7 +2011,7 @@ export default function PDVPage() {
                                       <td className="py-3 px-2 bg-white/[0.02] rounded-l-xl">
                                         <div className="text-foreground text-[13px]">{item.name}</div>
                                         {item.addons && item.addons.length > 0 && (
-                                          <div className="text-[9px] text-primary/70 italic mt-1 font-medium lowercase">
+                                          <div className="text-[11px] text-primary italic mt-1.5 font-black uppercase tracking-tight">
                                             + {item.addons.map(a => a.name).join(', ')}
                                           </div>
                                         )}
@@ -1762,12 +2034,15 @@ export default function PDVPage() {
                                       "w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black",
                                       p.method === 'cash' ? "bg-green-500/20 text-green-500" :
                                       p.method === 'pix' ? "bg-cyan-500/20 text-cyan-500" :
-                                      "bg-primary/20 text-primary"
+                                      p.method === 'credit' ? "bg-fuchsia-500/20 text-fuchsia-500" :
+                                      "bg-amber-500/20 text-amber-500"
                                     )}>
-                                      {p.method === 'cash' ? 'D' : p.method === 'pix' ? 'P' : 'C'}
+                                      {p.method === 'cash' ? 'D' : p.method === 'pix' ? 'P' : p.method === 'credit' ? 'CR' : 'DB'}
                                     </div>
                                     <div className="flex flex-col">
-                                      <span className="text-[7px] font-black opacity-30 uppercase tracking-widest">{p.method === 'cash' ? 'Dinheiro' : p.method === 'pix' ? 'Pix' : 'Cartão'}</span>
+                                      <span className="text-[7px] font-black opacity-30 uppercase tracking-widest">
+                                        {p.method === 'cash' ? 'Dinheiro' : p.method === 'pix' ? 'Pix' : p.method === 'credit' ? 'Crédito' : 'Débito'}
+                                      </span>
                                       <span className="text-sm font-black text-white tracking-tighter italic">R$ {p.amount.toFixed(2)}</span>
                                     </div>
                                   </div>
@@ -1828,7 +2103,7 @@ export default function PDVPage() {
                   </h2>
                   <motion.button 
                     whileTap={{ scale: 0.8 }}
-                    onTap={() => { setIsAdminOpen(false); setIsAdminVerified(false); setAdminPass(''); }} 
+                    onTap={() => { blockGhostClick(); setIsAdminOpen(false); setIsAdminVerified(false); setAdminPass(''); }} 
                     className="flex items-center gap-2 text-primary font-black uppercase text-[10px] hover:gap-4 transition-premium px-5 py-2.5 bg-primary/10 rounded-full"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -1923,7 +2198,7 @@ export default function PDVPage() {
                         >
                           feito por aalves.dev
                         </a>
-                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20 italic">v4.1.0</span>
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20 italic">v4.2.0</span>
                       </div>
                     </div>
                   </>
@@ -1936,12 +2211,16 @@ export default function PDVPage() {
       {/* Product Management Modal */}
       <AnimatePresence>
         {isManagingProducts && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
+          <div 
+            onClick={() => setIsManagingProducts(false)}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl cursor-pointer"
+          >
             <motion.div 
+              onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[90vh]"
+              className="bg-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[90vh] cursor-default"
             >
               <div className="flex justify-between items-center border-b border-white/5 pb-3">
                 <div className="flex flex-col">
@@ -2121,12 +2400,16 @@ export default function PDVPage() {
       {/* Category Management Modal */}
       <AnimatePresence>
         {isManagingCategories && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
+          <div 
+            onClick={() => setIsManagingCategories(false)}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl cursor-pointer"
+          >
             <motion.div 
+              onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[90vh]"
+              className="bg-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[90vh] cursor-default"
             >
               <div className="flex justify-between items-center border-b border-white/5 pb-3">
                 <h2 className="text-base font-black uppercase tracking-tighter italic flex items-center gap-2">
@@ -2149,6 +2432,7 @@ export default function PDVPage() {
                       <span className="font-black text-base uppercase italic leading-tight">{cat.name}</span>
                       <div className="flex gap-2 mt-2">
                         <button onClick={() => editCategoryName(cat.id!, cat.name)} className="px-4 py-1.5 rounded-lg border border-primary/20 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-premium">Editar</button>
+                        <button onClick={() => deleteCategory(cat.id!)} className="px-4 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 text-red-500 text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-premium">Excluir</button>
                         <div className="flex border border-white/10 rounded-lg overflow-hidden">
                           <button onClick={() => moveCategory(cat.id!, 'up')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-premium">▲</button>
                           <button onClick={() => moveCategory(cat.id!, 'down')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-premium border-l border-white/10">▼</button>
@@ -2240,12 +2524,16 @@ export default function PDVPage() {
       {/* Addon Management Modal */}
       <AnimatePresence>
         {isManagingAddons && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
+          <div 
+            onClick={() => setIsManagingAddons(false)}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl cursor-pointer"
+          >
             <motion.div 
+              onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[90vh]"
+              className="bg-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[90vh] cursor-default"
             >
               <div className="flex justify-between items-center border-b border-white/5 pb-3">
                 <h2 className="text-base font-black uppercase tracking-tighter italic flex items-center gap-2">
@@ -2263,9 +2551,9 @@ export default function PDVPage() {
 
               <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                 {addons.map((ad) => (
-                  <div key={ad.id} className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <div key={ad.id} className="flex items-center gap-4 p-3 bg-white/5 rounded-2xl border border-white/5">
                     <div className="flex-1 flex flex-col gap-1">
-                      <span className="font-black text-base uppercase italic leading-tight">{ad.name}</span>
+                      <span className="font-black text-2xl uppercase italic leading-tight">{ad.name}</span>
                       <div className="flex gap-2 mt-2">
                         <button 
                           onClick={() => { 
@@ -2290,7 +2578,7 @@ export default function PDVPage() {
                     </div>
 
                     <div className="text-right flex flex-col items-end gap-3">
-                      <span className="font-black text-lg italic tracking-tighter text-primary">R$ {ad.price.toFixed(2)}</span>
+                      <span className="font-black text-3xl italic tracking-tighter text-primary">R$ {ad.price.toFixed(2)}</span>
                       <motion.button 
                         whileTap={{ scale: 0.9 }}
                         onClick={() => toggleAddonVisibility(ad.id!, ad.visible)}
@@ -2547,9 +2835,9 @@ export default function PDVPage() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-card w-full max-w-5xl rounded-[2.5rem] border border-white/10 p-8 lg:p-10 flex flex-col gap-8 shadow-2xl overflow-y-auto max-h-[95vh] custom-scrollbar"
+              className="bg-card w-full max-w-5xl rounded-[2.5rem] border border-white/10 p-6 lg:p-8 flex flex-col gap-6 shadow-2xl overflow-y-auto max-h-[85vh] custom-scrollbar my-4"
             >
-              <h2 className="text-2xl font-black uppercase tracking-tighter italic">
+              <h2 className="text-xl font-black uppercase tracking-tighter italic">
                 {editingAddon ? 'Editar Adicional' : 'Novo Adicional'}
               </h2>
               
@@ -2562,19 +2850,19 @@ export default function PDVPage() {
                   });
                   setIsAddonFormOpen(false);
                 }}
-                className="flex flex-col gap-8"
+                className="flex flex-col gap-6"
               >
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                   {/* Left Column: Inputs and Keyboard */}
-                  <div className="flex flex-col gap-6">
+                  <div className="flex flex-col gap-5">
                     <div className="grid grid-cols-2 gap-4">
                       <div 
                         className="space-y-1.5 cursor-pointer"
                         onClick={() => setAddonFocusedInput('name')}
                       >
-                        <label className="text-xs font-black uppercase opacity-40 ml-1">Nome</label>
-                        <div className={cn("w-full bg-white/5 border rounded-xl px-5 py-4 font-black text-base transition-premium", addonFocusedInput === 'name' ? "border-primary shadow-lg shadow-primary/20 text-white" : "border-white/10 text-white/50")}>
-                          {addonFormName || <span className="opacity-20">EX: BACON</span>}
+                        <label className="text-[10px] font-black uppercase opacity-40 ml-1">Nome</label>
+                        <div className={cn("w-full bg-white/5 border rounded-xl px-4 py-3 font-black text-sm transition-premium", addonFocusedInput === 'name' ? "border-primary shadow-lg shadow-primary/20 text-white" : "border-white/10 text-white/50")}>
+                          {addonFormName || <span className="opacity-20 uppercase">EX: BACON</span>}
                         </div>
                       </div>
 
@@ -2582,14 +2870,14 @@ export default function PDVPage() {
                         className="space-y-1.5 cursor-pointer"
                         onClick={() => setAddonFocusedInput('price')}
                       >
-                        <label className="text-xs font-black uppercase opacity-40 ml-1">Preço (R$)</label>
-                        <div className={cn("w-full bg-white/5 border rounded-xl px-5 py-4 font-black text-xl transition-premium", addonFocusedInput === 'price' ? "border-green-500 shadow-lg shadow-green-500/20 text-green-500" : "border-white/10 text-white/50")}>
+                        <label className="text-[10px] font-black uppercase opacity-40 ml-1">Preço (R$)</label>
+                        <div className={cn("w-full bg-white/5 border rounded-xl px-4 py-3 font-black text-lg transition-premium", addonFocusedInput === 'price' ? "border-green-500 shadow-lg shadow-green-500/20 text-green-500" : "border-white/10 text-white/50")}>
                           {addonFormPrice || '0'}
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-black/40 rounded-3xl p-6 border border-white/5 shadow-inner min-h-[300px] flex items-center justify-center">
+                    <div className="bg-black/40 rounded-3xl p-4 border border-white/5 shadow-inner min-h-[280px] flex items-center justify-center">
                       {addonFocusedInput === 'price' ? (
                         <Numpad 
                           onInput={(v) => {
@@ -2617,9 +2905,9 @@ export default function PDVPage() {
                   </div>
 
                   {/* Right Column: Product Links */}
-                  <div className="flex flex-col gap-4">
-                    <label className="text-xs font-black uppercase opacity-40 ml-1">Vincular a Produtos</label>
-                    <div className="flex-1 bg-black/20 rounded-3xl p-6 border border-white/5 overflow-y-auto custom-scrollbar flex flex-col gap-6 content-start">
+                  <div className="flex flex-col gap-4 h-full">
+                    <label className="text-[10px] font-black uppercase opacity-40 ml-1">Vincular a Produtos</label>
+                    <div className="h-[340px] bg-black/20 rounded-3xl p-5 border border-white/5 overflow-y-auto custom-scrollbar flex flex-col gap-5 content-start">
                       {categories.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full opacity-20 py-10">
                           <p className="font-black uppercase text-xs">Nenhuma categoria cadastrada</p>
@@ -2633,7 +2921,7 @@ export default function PDVPage() {
                             return (
                               <div key={cat.id} className="space-y-3">
                                 <div className="flex items-center justify-between px-1">
-                                  <h4 className="text-[10px] font-black uppercase text-primary italic">{cat.name}</h4>
+                                  <h4 className="text-[11px] font-black uppercase text-primary italic">{cat.name}</h4>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2645,7 +2933,7 @@ export default function PDVPage() {
                                         setAddonFormProducts(prev => [...new Set([...prev, ...allIds])]);
                                       }
                                     }}
-                                    className="text-[8px] font-black uppercase opacity-40 hover:opacity-100 hover:text-primary transition-premium"
+                                    className="text-[9px] font-black uppercase opacity-60 hover:opacity-100 hover:text-primary transition-premium"
                                   >
                                     {catProds.every(p => addonFormProducts.includes(p.id!)) ? 'Desmarcar Tudo' : 'Marcar Tudo'}
                                   </button>
@@ -2663,13 +2951,13 @@ export default function PDVPage() {
                                           );
                                         }}
                                         className={cn(
-                                          "flex items-center justify-between p-3 rounded-xl border transition-premium text-left relative overflow-hidden",
-                                          isSelected ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/10" : "bg-white/5 border-white/5 text-white/40 hover:border-white/20"
+                                          "flex items-center justify-between p-2.5 rounded-xl border transition-premium text-left relative overflow-hidden",
+                                          isSelected ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/10" : "bg-white/5 border-white/5 text-white/70 hover:border-white/20"
                                         )}
                                       >
-                                        <span className="font-black uppercase text-[9px] tracking-tight truncate mr-1 relative z-10">{prod.name}</span>
-                                        <div className={cn("w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-premium relative z-10", isSelected ? "bg-primary text-white scale-110" : "bg-white/10")}>
-                                          {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                                        <span className="font-black uppercase text-[12px] tracking-tight truncate mr-1 relative z-10">{prod.name}</span>
+                                        <div className={cn("w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-premium relative z-10", isSelected ? "bg-primary text-white scale-110" : "bg-white/10")}>
+                                          {isSelected && <CheckCircle2 className="w-2.5 h-2.5" />}
                                         </div>
                                         {isSelected && <div className="absolute inset-0 bg-primary/5 animate-pulse" />}
                                       </button>
@@ -2694,17 +2982,17 @@ export default function PDVPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-4 border-t border-white/5">
+                <div className="flex gap-4">
                   <button 
                     type="button"
                     onClick={() => setIsAddonFormOpen(false)}
-                    className="flex-1 py-6 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-sm tracking-widest transition-premium"
+                    className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-xs tracking-widest transition-premium"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
-                    className="flex-[2] py-6 bg-primary hover:bg-primary/90 rounded-2xl font-black uppercase text-sm tracking-widest text-white shadow-xl shadow-primary/20 transition-premium"
+                    className="flex-[2] py-4 bg-primary hover:bg-primary/90 rounded-2xl font-black uppercase text-xs tracking-widest text-white shadow-xl shadow-primary/20 transition-premium"
                   >
                     Salvar Adicional
                   </button>
@@ -2715,15 +3003,229 @@ export default function PDVPage() {
         )}
       </AnimatePresence>
 
-      {/* Dashboard Modal */}
+      {/* Print Preview Modal */}
       <AnimatePresence>
-        {isDashboardOpen && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
+        {isPrintPreviewOpen && (
+          <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-3xl">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-zinc-900 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                <h2 className="text-sm font-black uppercase tracking-widest italic text-white/40">Preview da Impressão</h2>
+                <button onClick={() => setIsPrintPreviewOpen(false)} className="text-white/20 hover:text-white transition-premium">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 bg-zinc-950/50">
+                <div className="bg-white text-black p-6 shadow-2xl mx-auto w-[300px] min-h-[400px] font-mono text-[11px] leading-tight select-none">
+                  {/* Limpando comandos ESC/POS para o preview visual não ficar estranho */}
+                  <pre className="whitespace-pre-wrap break-all uppercase">
+                    {printPreviewContent
+                      .replace(/\u001b!\u0030/g, '')
+                      .replace(/\u001b!\u0010/g, '')
+                      .replace(/\u001b!\u0000/g, '')
+                    }
+                  </pre>
+                </div>
+              </div>
+
+              <div className="p-6 bg-zinc-900 border-t border-white/5 flex gap-3">
+                <button 
+                  onClick={() => setIsPrintPreviewOpen(false)}
+                  className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-premium"
+                >
+                  Fechar
+                </button>
+                <button 
+                  onClick={() => executeRealPrint(printPreviewContent)}
+                  className="flex-[2] py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20 transition-premium flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  Imprimir Agora
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Sale Modal */}
+      <AnimatePresence>
+        {isEditingSale && editingSaleData && (
+          <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-3xl">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-card w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-10 flex flex-col gap-8 max-h-[90vh]"
+              className="bg-zinc-900 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8"
+            >
+              <h2 className="text-xl font-black uppercase tracking-tighter italic mb-6 flex items-center gap-2 text-white">
+                <Pencil className="w-5 h-5 text-primary" />
+                Editar Venda {editingSaleData.displayId}
+              </h2>
+              
+              <form onSubmit={saveEditedSale} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest opacity-40 px-1 text-white">Nome do Cliente</label>
+                  <input 
+                    type="text"
+                    value={editingSaleData.customerName}
+                    onChange={(e) => setEditingSaleData({...editingSaleData, customerName: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 font-black uppercase text-sm text-white focus:border-primary outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest opacity-40 px-1 text-white">Meio de Pagamento (Visual)</label>
+                  <select 
+                    value={editingSaleData.paymentMethod}
+                    onChange={(e) => setEditingSaleData({...editingSaleData, paymentMethod: e.target.value as any})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 font-black uppercase text-sm text-white focus:border-primary outline-none transition-all appearance-none"
+                  >
+                    <option value="cash">Dinheiro</option>
+                    <option value="pix">Pix</option>
+                    <option value="credit">Crédito</option>
+                    <option value="debit">Débito</option>
+                    <option value="multi">Misto (Não editável aqui)</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-3 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Isso irá substituir o carrinho atual pelos itens desta venda. Continuar?')) {
+                        setCart(editingSaleData.items);
+                        setCustomerName(editingSaleData.customerName);
+                        setPayments(editingSaleData.payments || []);
+                        setEditingSaleId(editingSaleData.id);
+                        setIsEditingSale(false);
+                        setIsHistoryOpen(false);
+                      }
+                    }}
+                    className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-black rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-amber-500/20 transition-premium mb-2"
+                  >
+                    Reabrir Itens no Carrinho 🛒
+                  </button>
+
+                  <div className="flex gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setIsEditingSale(false)}
+                      className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-xs tracking-widest text-white transition-premium"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-[2] py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-premium"
+                    >
+                      Salvar Dados Básicos
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Monitor Modal */}
+      <AnimatePresence>
+        {isMonitorOpen && (
+          <div 
+            onClick={() => { blockGhostClick(); setIsMonitorOpen(false); }}
+            className="fixed inset-0 z-[5000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-3xl cursor-pointer"
+          >
+            <motion.div 
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0a0a0a] w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-8 flex flex-col gap-6 max-h-[80vh] cursor-default"
+            >
+              <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                <div className="flex flex-col">
+                  <h2 className="text-xl font-black uppercase tracking-tighter italic flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    Live Monitor
+                  </h2>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40 italic">Usuários conectados via túnel/local</p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20">
+                    {onlineUsers.length} Online
+                  </div>
+                  <span className="text-[8px] font-black opacity-20 uppercase tracking-widest">Build v4.1.1</span>
+                  <button 
+                    onClick={() => {
+                      if (confirm('Deseja forçar a atualização do app? Isso irá limpar o cache e recarregar a página.')) {
+                        if ('serviceWorker' in navigator) {
+                          caches.keys().then(names => {
+                            for (let name of names) caches.delete(name);
+                          });
+                          navigator.serviceWorker.getRegistrations().then(registrations => {
+                            for (let registration of registrations) registration.unregister();
+                          });
+                        }
+                        window.location.reload();
+                      }
+                    }}
+                    className="text-[7px] font-black uppercase text-primary hover:underline mt-1"
+                  >
+                    Limpar Cache e Atualizar
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                {onlineUsers.map((user: any, i) => (
+                  <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-between">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs uppercase tracking-tight text-white/90">{user.geo?.ip}</span>
+                        {user.isLocal && <span className="bg-blue-500/20 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Dev</span>}
+                      </div>
+                      <div className="flex items-center gap-2 opacity-40">
+                        <span className="text-[9px] font-black uppercase tracking-widest">{user.geo?.city}, {user.geo?.country}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[10px] font-black text-primary uppercase italic">Caixa #{user.cashier}</span>
+                      <span className="text-[8px] font-bold opacity-20 uppercase">Acesso: {new Date(user.online_at).toLocaleTimeString('pt-BR')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => { blockGhostClick(); setIsMonitorOpen(false); }}
+                className="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-premium border border-white/10"
+              >
+                Fechar Monitor
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Dashboard Modal */}
+      <AnimatePresence>
+        {isDashboardOpen && (
+          <div 
+            onClick={() => setIsDashboardOpen(false)}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl cursor-pointer"
+          >
+            <motion.div 
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 p-10 flex flex-col gap-8 max-h-[90vh] cursor-default"
             >
               <div className="flex justify-between items-center border-b border-white/5 pb-6">
                 <h2 className="text-3xl font-black uppercase tracking-tighter italic flex items-center gap-3">

@@ -36,17 +36,27 @@ export function useOfflineSync() {
 
         // Fix: Find existing local IDs for these UUIDs so bulkPut UPDATES instead of INSERTING
         const existingRecords = await db.sales.where('uuid').anyOf(fetchedSales.map(s => s.uuid)).toArray();
-        const uuidToId = new Map(existingRecords.map(r => [r.uuid, r.id]));
+        const uuidToRecord = new Map(existingRecords.map(r => [r.uuid, r]));
 
-        const salesToLocal = fetchedSales.map(s => {
-          const existingId = uuidToId.get(s.uuid);
-          if (existingId) {
-            return { ...s, id: existingId };
+        const salesToLocal = fetchedSales.filter(s => {
+          const localRecord = uuidToRecord.get(s.uuid);
+          // PROTEÇÃO: Se a venda local existe e NÃO está sincronizada (0), NÃO sobrescreve.
+          if (localRecord && localRecord.synced === 0) {
+            console.log(`Skipping sync for ${s.uuid} - local version is pending.`);
+            return false; 
+          }
+          return true;
+        }).map(s => {
+          const localRecord = uuidToRecord.get(s.uuid);
+          if (localRecord) {
+            return { ...s, id: localRecord.id };
           }
           return s;
         });
 
-        await db.sales.bulkPut(salesToLocal);
+        if (salesToLocal.length > 0) {
+          await db.sales.bulkPut(salesToLocal);
+        }
       }
     } catch (err) {
       console.error('Failed to pull sales:', err);
@@ -98,7 +108,7 @@ export function useOfflineSync() {
       const ads = await db.addons.toArray();
 
       if (cats.length) await supabase.from('categories').upsert(cats.map(c => ({ id: c.id, name: c.name, order: c.order, visible: c.visible })));
-      if (prods.length) await supabase.from('products').upsert(prods.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category, available: p.available, image: p.image, addon_ids: p.addons || [], order: p.order })));
+      if (prods.length) await supabase.from('products').upsert(prods.map(p => ({ id: p.id, name: p.name, price: p.price, category: p.category, available: p.available, image: p.image, order: p.order })));
       if (ads.length) await supabase.from('addons').upsert(ads.map(a => ({ id: a.id, name: a.name, price: a.price, visible: a.visible, product_ids: a.product_ids || [] })));
     } catch (err) {
       console.error('Failed to push menu:', err);
@@ -146,11 +156,19 @@ export function useOfflineSync() {
     const periodicSync = async () => {
       if (navigator.onLine && !syncingRef.current) {
         await syncPendingSales();
+        await pullRecentSales();
+        await pullMenu();
       }
-      syncTimer = setTimeout(periodicSync, 120000);
+      syncTimer = setTimeout(periodicSync, 180000);
     };
 
-    syncTimer = setTimeout(periodicSync, 120000);
+    // Pull menu and recent sales immediately on mount (refresh)
+    if (navigator.onLine) {
+      pullMenu();
+      pullRecentSales();
+    }
+
+    syncTimer = setTimeout(periodicSync, 180000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -182,8 +200,7 @@ export function useOfflineSync() {
           category: p.category, 
           available: p.available,
           image: p.image,
-          order: p.order,
-          addons: p.addon_ids || []
+          order: p.order
         })));
       }
 

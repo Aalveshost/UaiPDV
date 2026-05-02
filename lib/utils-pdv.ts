@@ -16,13 +16,12 @@ export const formatCurrency = (value: number) => {
  * Generates a clean sequential display ID for orders.
  * It uses localStorage to persist the counter across refreshes.
  */
-export const generateDisplayId = async (): Promise<string> => {
+export const generateDisplayId = async (cashierNumber: number | string): Promise<string> => {
   const currentCounter = localStorage.getItem('maktub_order_counter') || '0';
   const nextCounter = parseInt(currentCounter) + 1;
   localStorage.setItem('maktub_order_counter', nextCounter.toString());
   
-  // Pad with zeros (e.g., 001, 042, 125)
-  return `#${nextCounter.toString().padStart(3, '0')}`;
+  return `#${cashierNumber} - ${nextCounter.toString().padStart(2, '0')}`;
 };
 
 /**
