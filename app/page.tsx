@@ -259,7 +259,7 @@ export default function PDVPage() {
   const [printPreviewContent, setPrintPreviewContent] = useState('');
   const [isEditingSale, setIsEditingSale] = useState(false);
   const [editingSaleData, setEditingSaleData] = useState<Sale | null>(null);
-  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
   const lastModalCloseTime = useRef<number>(0);
   
   const blockGhostClick = () => {
@@ -923,7 +923,8 @@ export default function PDVPage() {
 
     try {
       if (editingSaleId) {
-        await db.sales.update(editingSaleId, sale);
+        // Use put to replace the entire record when editing
+        await db.sales.put({ ...sale, id: editingSaleId });
       } else {
         await db.sales.add(sale);
       }
@@ -3093,7 +3094,7 @@ export default function PDVPage() {
                         setCart(editingSaleData.items);
                         setCustomerName(editingSaleData.customerName);
                         setPayments(editingSaleData.payments || []);
-                        setEditingSaleId(editingSaleData.id);
+                        setEditingSaleId(editingSaleData.id || null);
                         setIsEditingSale(false);
                         setIsHistoryOpen(false);
                       }
